@@ -73,13 +73,17 @@ char*** GetDialogueData(cJSON* json){
     return dialogue;
 }
 
-void DialogueGenerateFontAtlas(Font* speakerFont, Font* dialogueFont, char*** dialogue, int currentDialogueIndex){
+void DialogueGenerateFontAtlas(Font* dialogueFont, char*** dialogue, int dialogueLen){
+    char str[1000];
+    for (int i = 0; i < dialogueLen; i++){
+        strcat(str, dialogue[i][1]);
+    }
+    for (int i = 0; i < dialogueLen; i++){
+        strcat(str, dialogue[i][0]);
+    }
     int codepointCount = 0;
-    int *codepoints = LoadCodepoints(dialogue[currentDialogueIndex][0], &codepointCount);
-    *speakerFont = LoadFontEx("Assets/Fonts/SB Aggro M.ttf", 70, codepoints, codepointCount);
-    GenTextureMipmaps(&(speakerFont->texture));
-    codepointCount = 0;
-    codepoints = LoadCodepoints(dialogue[currentDialogueIndex][1], &codepointCount);
+    int *codepoints = LoadCodepoints(str, &codepointCount);
     *dialogueFont = LoadFontEx("Assets/Fonts/SB Aggro M.ttf", 70, codepoints, codepointCount);
-    GenTextureMipmaps(&(dialogueFont->texture));
+    SetTextureFilter(dialogueFont->texture, TEXTURE_FILTER_BILINEAR);
+    //GenTextureMipmaps(&(dialogueFont->texture));
 }
