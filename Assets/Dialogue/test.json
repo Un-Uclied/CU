@@ -1,0 +1,13 @@
+{
+    "dialogues" : [
+        {"speaker" : "당신",
+        "text" : "편의점 문 열었다\n호갱님들 오세여 ^^"},
+
+        {"speaker" : "Custumer",
+        "text" : "감자칩이랑 환타 점"},
+
+        {"speaker" : "당신",
+        "text" : "(찾으러 간다 아이가)"}
+    ],
+    "dialogue length" : 3
+}
