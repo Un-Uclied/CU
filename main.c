@@ -11,7 +11,7 @@
 typedef enum {MAIN_SCREEN = 0, MAIN_GAME, SETTINGS } GameMenu;
 typedef enum {SCENE_COUNTER = 0, SCENE_SNACK_BAR, SCENE_BEVERAGE_BAR, SCENE_RAMEN_BAR, SCENE_STUFF_BAR} Scene;
 typedef enum {DIFFICULTY_EASY = 0, DIFFICULTY_NORMAL, DIFFICULTY_HARD} Difficulty;
-typedef struct {int health; int rating} Player;
+typedef struct {int health; int rating;} Player;
 
 // 싱글톤 구조체
 typedef struct {
@@ -29,9 +29,13 @@ GameManager* GetGameManager() {
 
 cJSON* GetJsonData(char* fileName);
 
-void OnPrevSceneButtonClicked();
+void OnPrevSceneButtonClicked(ButtonUI* btn);
 
-void OnNextSceneButtonClicked();
+void OnNextSceneButtonClicked(ButtonUI* btn);
+
+void OnItemStorageItemLeftClicked(ItemStorage* itemStorage);
+
+void OnItemStorageItemRightClicked(ItemStorage* itemStorage);
 
 void LoadFontAll(Font* font);
 
@@ -45,6 +49,20 @@ void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* cur
     *dialogueLen = GetDialogueLen(jsonData);
     *currentDialogueIndex = 0;
 }
+
+int itemsPos[10][2] = {
+    {200, 200},
+    {350, 200},
+    {500, 200},
+    {640, 200},
+    {800, 200},
+
+    {200, 400},
+    {350, 400},
+    {500, 400},
+    {640, 400},
+    {800, 400},
+};
 
 int main(void){
     InitWindow(1500, 900, "CU");
@@ -61,7 +79,7 @@ int main(void){
     // Dialogue
     char customerDialoguePath[256];
     char* customerName = "Normal Customer";
-    sprintf(customerDialoguePath, "Assets/Dialogue/Customers/%s/%s.json", customerName, GetDifficultyName());
+    sprintf(customerDialoguePath, "Assets/Data/Customers/%s/%s.json", customerName, GetDifficultyName());
 
     cJSON* jsonData = GetJsonData(customerDialoguePath);
     char*** dialogue = GetDialogueData(jsonData);
@@ -81,10 +99,10 @@ int main(void){
     Texture blank = LoadTexture("Assets/Images/Backgrounds/Blank.png");
     Texture backgrounds[5][2] = {
         {LoadTexture("Assets/Images/Backgrounds/CounterBack.png"), LoadTexture("Assets/Images/Backgrounds/CounterFore.png")},
-        {LoadTexture("Assets/Images/Backgrounds/CounterBack.png"), blank},
-        {LoadTexture("Assets/Images/Backgrounds/CounterBack.png"), blank},
-        {LoadTexture("Assets/Images/Backgrounds/CounterBack.png"), blank},
-        {LoadTexture("Assets/Images/Backgrounds/CounterBack.png"), blank},
+        {LoadTexture("Assets/Images/Backgrounds/Snack Bar.jpg"), blank},
+        {LoadTexture("Assets/Images/Backgrounds/Drink Bar.jpg"), blank},
+        {LoadTexture("Assets/Images/Backgrounds/Ramen Bar.jpg"), blank},
+        {LoadTexture("Assets/Images/Backgrounds/Tools Bar.jpg"), blank},
     };
 
     Texture vignetteEffect = LoadTexture("Assets/Images/UI Effects/Vignette.png");
@@ -120,6 +138,24 @@ int main(void){
     Rectangle cardMachine = (Rectangle) {550, 600, 200, 100};
     // Hit Boxes End
 
+    ItemStorage itemsButtonUIs[10];
+    
+    cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
+    char* itemBar = "Snacks";
+    cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
+    for (int i = 0; i < 10; i++){
+        char temp[50];
+        sprintf(temp, "Assets/Images/Items/Snacks/%d.png", i);
+        char *itemName = cJSON_GetArrayItem(currentBar, i)->string;
+        itemsButtonUIs[i] = (ItemStorage){
+            (Rectangle){itemsPos[i][0], itemsPos[i][1], 70, 70},
+            LoadTexture(temp),
+            itemName,
+            OnItemStorageItemLeftClicked,
+            OnItemStorageItemRightClicked
+        };
+    }
+
     while (!WindowShouldClose()){
         float deltaTime = GetFrameTime();
         switch (gm->currentGameMenu)
@@ -148,11 +184,20 @@ int main(void){
                     }
                 }
                 
+                // 고객은 항상 이동하려는중 새 고객올시 0으로 초기화 하셈 ㅇㅇ
                 customerPosX = fmin(270, customerPosX + 1500 * deltaTime);
                 
+                // 씬을 움직일수 있을때 버튼 업데이트
                 if (canMoveScene){
                     for (int i = 0; i < 2; i++){
                         UpdateButtonUI(&sceneMoveBtns[i]);
+                    }
+                }
+
+                // 카운터가 아님
+                if (gm->currentSceneIndex != SCENE_COUNTER){
+                    for (int i = 0; i < 10; i++){
+                        UpdateItemStorage(&itemsButtonUIs[i]);
                     }
                 }
                 
@@ -161,10 +206,18 @@ int main(void){
                     if (gm->currentSceneIndex == SCENE_COUNTER){
                         DrawTextureV(currentCustomerTexture, (Vector2){customerPosX, 100}, WHITE);
                     
-                        DrawRectangleRec(posMachine, (Color){255, 0, 0, 100});
-                        DrawRectangleRec(cardMachine, (Color){0, 255, 0, 100});
+                        // DrawRectangleRec(posMachine, (Color){255, 0, 0, 100});
+                        // DrawRectangleRec(cardMachine, (Color){0, 255, 0, 100});
                     }
+                    else{
+                        for (int i = 0; i < 10; i++){
+                            RenderItemStorage(&itemsButtonUIs[i]);
+                        }
+                    }
+                    // 카운터 책상 렌더에도 쓸수 있고 손 렌더할수도
                     DrawTexture(backgrounds[gm->currentSceneIndex][1], 0, 0, WHITE);
+                    
+                    
 
                     // Dialogue UI
                     DrawRectangleRec((Rectangle){0, GetScreenHeight() - 200, GetScreenWidth() - 400, 200}, BLACK);
@@ -265,7 +318,7 @@ void LoadFontAll(Font* font){
     SetTextureFilter(font->texture, TEXTURE_FILTER_BILINEAR);
 }
 
-void OnPrevSceneButtonClicked(){
+void OnPrevSceneButtonClicked(ButtonUI* btn){
     GameManager* gm = GetGameManager();
 
     gm->currentSceneIndex --;
@@ -274,7 +327,7 @@ void OnPrevSceneButtonClicked(){
     }
 }
 
-void OnNextSceneButtonClicked(){
+void OnNextSceneButtonClicked(ButtonUI* btn){
     GameManager* gm = GetGameManager();
 
     gm->currentSceneIndex ++;
@@ -318,4 +371,13 @@ char* GetDifficultyName(){
     default:
         return "ERROR";
     }
+}
+
+
+void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
+    printf("WWWWWWWWWWWWWWWWWWWWWAAAAAAAAAAAAAAAA\n");
+}
+
+void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
+
 }

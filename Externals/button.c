@@ -17,10 +17,34 @@ void UpdateButtonUI(ButtonUI* btn){
         btn->currentTexture = &btn->normalTexture;
     }
     if (buttonAction){
-        btn->OnClick();
+        btn->OnClick(btn);
     }
 }
 
 void RenderButtonUI(ButtonUI* btn){
     DrawTexture(*(btn->currentTexture), btn->rect.x, btn->rect.y, WHITE);
+}
+
+
+void UpdateItemStorage(ItemStorage* storage){
+    bool leftAction = false;
+    bool rightAction = false;
+    if (CheckCollisionPointRec(GetMousePosition(), storage->rect)){
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+            leftAction = true;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+            rightAction = true;
+        }
+    }
+    if (leftAction){
+        storage->OnLeftClick(storage);
+    }
+    if (rightAction){
+        storage->OnRightClick(storage);
+    }
+}
+
+void RenderItemStorage(ItemStorage* storage){
+    DrawTexture(storage->texture, storage->rect.x, storage->rect.y, WHITE);
 }
