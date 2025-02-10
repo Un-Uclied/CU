@@ -38,11 +38,15 @@ cJSON* GetDialogueJson(char* dialogueFileName){
 }
 
 int GetDialogueLen(cJSON* json){
-    return cJSON_GetObjectItem(json, "dialogue length")->valueint;
+    cJSON *dialogueArray = cJSON_GetObjectItem(json, "dialogues");
+    return cJSON_GetArraySize(dialogueArray);
 }
 
 char*** GetDialogueData(cJSON* json){
-    int dialogueLength = cJSON_GetObjectItem(json, "dialogue length")->valueint;
+    cJSON *dialogueArray = cJSON_GetObjectItem(json, "dialogues");
+
+    int dialogueLength = cJSON_GetArraySize(dialogueArray);
+
     // char dialogue[dialougeLength][2][20];
     //char dialogue[2][2][20] = {{"Player", "Wario"}, {"Customer", "no fuck ur mom bro"}};
     char ***dialogue = malloc(sizeof(char**) * dialogueLength);
@@ -51,7 +55,6 @@ char*** GetDialogueData(cJSON* json){
         dialogue[i][0] = malloc(20);  // 플레이어 이름 (최대 20글자)
         dialogue[i][1] = malloc(200); // 대화 내용 (최대 200글자)
     }
-    cJSON *dialogueArray = cJSON_GetObjectItem(json, "dialogues");
     if (!cJSON_IsArray(dialogueArray)) {
         printf("JSON 데이터가 배열이 아님!\n");
         return NULL;
@@ -73,17 +76,17 @@ char*** GetDialogueData(cJSON* json){
     return dialogue;
 }
 
-void DialogueGenerateFontAtlas(Font* dialogueFont, char*** dialogue, int dialogueLen){
-    char str[1000];
-    for (int i = 0; i < dialogueLen; i++){
-        strcat(str, dialogue[i][1]);
-    }
-    for (int i = 0; i < dialogueLen; i++){
-        strcat(str, dialogue[i][0]);
-    }
-    int codepointCount = 0;
-    int *codepoints = LoadCodepoints(str, &codepointCount);
-    *dialogueFont = LoadFontEx("Assets/Fonts/SB Aggro M.ttf", 70, codepoints, codepointCount);
-    SetTextureFilter(dialogueFont->texture, TEXTURE_FILTER_BILINEAR);
-    //GenTextureMipmaps(&(dialogueFont->texture));
-}
+// void DialogueGenerateFontAtlas(Font* dialogueFont, char*** dialogue, int dialogueLen){
+//     char str[1000];
+//     for (int i = 0; i < dialogueLen; i++){
+//         strcat(str, dialogue[i][1]);
+//     }
+//     for (int i = 0; i < dialogueLen; i++){
+//         strcat(str, dialogue[i][0]);
+//     }
+//     int codepointCount = 0;
+//     int *codepoints = LoadCodepoints(str, &codepointCount);
+//     *dialogueFont = LoadFontEx("Assets/Fonts/SB Aggro M.ttf", 70, codepoints, codepointCount);
+//     SetTextureFilter(dialogueFont->texture, TEXTURE_FILTER_BILINEAR);
+//     //GenTextureMipmaps(&(dialogueFont->texture));
+// }
