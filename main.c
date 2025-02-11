@@ -132,6 +132,7 @@ int main(void){
     globals->isPosMachineOpened = false;
 
     globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    globals->currentInventoryItemTextures = (Texture*)malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
 
     // Dialogue
     char customerDialoguePath[256];
@@ -214,10 +215,10 @@ int main(void){
         sprintf(name, "%d", i);
         inventoryDeleteButtons[i] = (ButtonUI){
             name,
-            (Rectangle) {500, i * 120 + 90, 100, 100},
-            LoadTexture("Assets/Images/UI/Inventory.png"),
-            LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
-            LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
+            (Rectangle) {950, i * 120 + 90, 100, 100},
+            LoadTexture("Assets/Images/UI/Close Inventory.png"),
+            LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
+            LoadTexture("Assets/Images/UI/Close Inventory Hovered.png"),
             NULL, 
             OnItemDeleteButtonClicked
         };
@@ -346,7 +347,7 @@ int main(void){
 
                         for (int i = 0; i < globals->currentInventoryLen; i++){
                             DrawTextEx(font, globals->currentInventory[i], (Vector2){45, i * 120 + 100}, 40, 2, WHITE);
-                            //DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){860, i * 120 + 90}, WHITE);
+                            DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){820, i * 120 + 90}, WHITE);
                             RenderButtonUI(&inventoryDeleteButtons[i]);
                         }
                     }
@@ -521,6 +522,7 @@ void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
     }
 
     globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
+    globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
     globals->currentInventoryLen ++;
 }
 
@@ -531,6 +533,7 @@ void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
 void OnItemDeleteButtonClicked(ButtonUI* btn){
     Globals * globals = GetGlobalVariables();
     globals->currentInventory[atoi(btn->objectName)] = NULL;
+    globals->currentInventoryItemTextures[atoi(btn->objectName)].id = 0; // Texture **로 하기 귀찮아서 걍 id가 0인건 지워야할거로 생각
     int prevSize = globals->currentInventoryLen;
     globals->currentInventoryLen --;
 
@@ -538,12 +541,22 @@ void OnItemDeleteButtonClicked(ButtonUI* btn){
     int j = 0;
     for (int i = 0; i < prevSize; i++){
         if (globals->currentInventory[i] != NULL){
-            printf("%d | %s\n", j, globals->currentInventory[j]);
             temp[j] = globals->currentInventory[i];
             j++;   
         }
     }
 
+    Texture* textureTemp = (Texture*)malloc(sizeof(Texture) * globals->currentInventoryLen);
+    int l = 0;
+    for (int i = 0; i < prevSize; i++){
+        if (globals->currentInventoryItemTextures[i].id != 0){
+            textureTemp[l] = globals->currentInventoryItemTextures[i];
+            l++;   
+        }
+    }
+
     free(globals->currentInventory);
+    free(globals->currentInventoryItemTextures);
     globals->currentInventory = temp;
+    globals->currentInventoryItemTextures = textureTemp;
 }
