@@ -51,6 +51,9 @@ typedef struct {
     bool isInventoryOpened;
     bool isPosMachineOpened;
     bool isCardMachineOpened;
+
+    char* currentInventory[5];
+    int currentInventoryLen;
 } Globals;
 
 // 정적 변수로 싱글톤 객체 유지 이게 맞냐??
@@ -297,7 +300,11 @@ int main(void){
                     // Scene Move UI End
 
                     if (globals->isInventoryOpened){
-                        DrawRectangleRec(inventoryBG, RED);
+                        DrawRectangleRec(inventoryBG, BLUE);
+                        DrawRectangleRec((Rectangle){20, 20, 1060, 60}, BLACK); // 나중에 UI 그래픽으로 바꿔야함;
+                        char temp[50];
+                        sprintf(temp, "인벤토리 %d / 5", globals->currentInventoryLen);
+                        DrawTextEx(font, temp, (Vector2){35, 35}, 40, 2, WHITE);
                     }
 
                     DrawFPS(1400, 10);
