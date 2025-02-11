@@ -131,6 +131,8 @@ int main(void){
     globals->isCardMachineOpened = false;
     globals->isPosMachineOpened = false;
 
+    globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+
     // Dialogue
     char customerDialoguePath[256];
     char* customerName = "Normal Customer";
@@ -208,11 +210,11 @@ int main(void){
 
     ButtonUI inventoryDeleteButtons[INVENTORY_MAX_LEN];
     for (int i = 0; i < INVENTORY_MAX_LEN; i++){
-        char name[10];
+        char* name = (char*)MemAlloc(sizeof(char) * 10);
         sprintf(name, "%d", i);
         inventoryDeleteButtons[i] = (ButtonUI){
             name,
-            (Rectangle) {400, i * 120 + 90, 100, 100},
+            (Rectangle) {500, i * 120 + 90, 100, 100},
             LoadTexture("Assets/Images/UI/Inventory.png"),
             LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
             LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
@@ -344,7 +346,7 @@ int main(void){
 
                         for (int i = 0; i < globals->currentInventoryLen; i++){
                             DrawTextEx(font, globals->currentInventory[i], (Vector2){45, i * 120 + 100}, 40, 2, WHITE);
-                            DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){860, i * 120 + 90}, WHITE);
+                            //DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){860, i * 120 + 90}, WHITE);
                             RenderButtonUI(&inventoryDeleteButtons[i]);
                         }
                     }
@@ -518,25 +520,8 @@ void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
         return;
     }
 
-    //free(globals->currentInventory);
-    char** temp = (char**)malloc(sizeof(char*) * (globals->currentInventoryLen + 1));
-    
-    for (int i = 0; i < globals->currentInventoryLen; i++){
-        temp[i] = strdup(globals->currentInventory[i]);
-    }
-    
-    temp[globals->currentInventoryLen] = itemStorage->itemName;
-
-    globals->currentInventoryLen++;
-
-    free(globals->currentInventory);
-
-    globals->currentInventory = temp;
-    for (int i = 0; i < globals->currentInventoryLen++; i++){
-        globals->currentInventory[i] = strdup(temp[i]);
-    }
-
-    printf("\n");
+    globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
+    globals->currentInventoryLen ++;
 }
 
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
@@ -545,4 +530,20 @@ void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
 
 void OnItemDeleteButtonClicked(ButtonUI* btn){
     Globals * globals = GetGlobalVariables();
+    globals->currentInventory[atoi(btn->objectName)] = NULL;
+    int prevSize = globals->currentInventoryLen;
+    globals->currentInventoryLen --;
+
+    char** temp = (char**)malloc(sizeof(char*) * globals->currentInventoryLen);
+    int j = 0;
+    for (int i = 0; i < prevSize; i++){
+        if (globals->currentInventory[i] != NULL){
+            printf("%d | %s\n", j, globals->currentInventory[j]);
+            temp[j] = globals->currentInventory[i];
+            j++;   
+        }
+    }
+
+    free(globals->currentInventory);
+    globals->currentInventory = temp;
 }
