@@ -54,8 +54,8 @@ typedef struct {
     bool isPosMachineOpened;
     bool isCardMachineOpened;
 
-    char* currentInventory[5];
-    Texture currentInventoryItemTextures[5];
+    char** currentInventory; // 연결 리스트 구현하기 귀찮;
+    Texture* currentInventoryItemTextures;
     int currentInventoryLen;
 } Globals;
 
@@ -81,6 +81,8 @@ void OnItemStorageItemLeftClicked(ItemStorage* itemStorage);
 
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage);
 
+void OnItemDeleteButtonClicked(ButtonUI* btn);
+
 void LoadFontAll(Font* font);
 
 void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath){
@@ -93,7 +95,6 @@ void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* cur
 void LoadItemGraphics(ItemStorage* itemBtns){
     cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
     char* itemBar = GetItemCategoryFolderPath();
-    printf("%s\n", itemBar);
     cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
     for (int i = 0; i < 10; i++){
         char temp[50];
@@ -160,7 +161,9 @@ int main(void){
 
     // Scene Move Start
     bool canMoveScene = false;
-    ButtonUI nextSceneButton = (ButtonUI){(Rectangle){1000, GetScreenHeight() - 120, 100, 100},
+    ButtonUI nextSceneButton = (ButtonUI){
+        "", // 이름 필요 없음;
+        (Rectangle){1000, GetScreenHeight() - 120, 100, 100},
         LoadTexture("Assets/Images/UI/Go Right.png"),
         LoadTexture("Assets/Images/UI/Go Right Pressed.png"),
         LoadTexture("Assets/Images/UI/Go Right Hovered.png"),
@@ -169,7 +172,9 @@ int main(void){
     };
     nextSceneButton.currentTexture = &nextSceneButton.normalTexture;
 
-    ButtonUI prevSceneButton = (ButtonUI){(Rectangle){850, GetScreenHeight() - 120, 100, 100},
+    ButtonUI prevSceneButton = (ButtonUI){
+        "", // 이름 필요 없음;
+        (Rectangle){850, GetScreenHeight() - 120, 100, 100},
         LoadTexture("Assets/Images/UI/Go Left.png"),
         LoadTexture("Assets/Images/UI/Go Left Pressed.png"),
         LoadTexture("Assets/Images/UI/Go Left Hovered.png"),
@@ -188,6 +193,7 @@ int main(void){
 
     // Inventory Start
     ButtonUI inventoryButtonUI = (ButtonUI){
+        "", // 이름 필요 없음;
         (Rectangle) {GetScreenWidth()-380, GetScreenHeight() -120, 100, 100},
         LoadTexture("Assets/Images/UI/Inventory.png"),
         LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
@@ -199,6 +205,21 @@ int main(void){
     Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
 
     Texture inventoryTexture[5];
+
+    ButtonUI inventoryDeleteButtons[INVENTORY_MAX_LEN];
+    for (int i = 0; i < INVENTORY_MAX_LEN; i++){
+        char name[10];
+        sprintf(name, "%d", i);
+        inventoryDeleteButtons[i] = (ButtonUI){
+            name,
+            (Rectangle) {400, i * 120 + 90, 100, 100},
+            LoadTexture("Assets/Images/UI/Inventory.png"),
+            LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
+            LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
+            NULL, 
+            OnItemDeleteButtonClicked
+        };
+    }
     // Inventory End
     
     while (!WindowShouldClose()){
@@ -248,6 +269,12 @@ int main(void){
                 if (globals->currentCornerIndex != CORNER_COUNTER && IsPopUpOpened() == false){
                     for (int i = 0; i < 10; i++){
                         UpdateItemStorage(&globals->itemsButtonUIs[i]);
+                    }
+                }
+
+                if (globals->isInventoryOpened){
+                    for (int i = 0; i < globals->currentInventoryLen; i++){
+                        UpdateButtonUI(&inventoryDeleteButtons[i]);
                     }
                 }
                 
@@ -313,8 +340,12 @@ int main(void){
                         
                         for (int i = 0; i < INVENTORY_MAX_LEN; i++){
                             DrawRectangleGradientV(20, i * 120 + 100, 1060, 100, BLUE, (Color){ 0, 101, 211, 255 } );
+                        }
+
+                        for (int i = 0; i < globals->currentInventoryLen; i++){
                             DrawTextEx(font, globals->currentInventory[i], (Vector2){45, i * 120 + 100}, 40, 2, WHITE);
                             DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){860, i * 120 + 90}, WHITE);
+                            RenderButtonUI(&inventoryDeleteButtons[i]);
                         }
                     }
 
@@ -436,7 +467,6 @@ void OnInventoryButtonClicked(ButtonUI* btn){
     else{
         globals->isInventoryOpened = true;
     }
-    
 }
 
 // UI 표시 내용
@@ -481,17 +511,38 @@ char* GetItemCategoryFolderPath(){
     }
 }
 
+
 void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
-    printf("%s\n", itemStorage->itemName);
     Globals* globals = GetGlobalVariables();
     if (globals->currentInventoryLen == INVENTORY_MAX_LEN){
         return;
     }
-    globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
-    globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
+
+    //free(globals->currentInventory);
+    char** temp = (char**)malloc(sizeof(char*) * (globals->currentInventoryLen + 1));
+    
+    for (int i = 0; i < globals->currentInventoryLen; i++){
+        temp[i] = strdup(globals->currentInventory[i]);
+    }
+    
+    temp[globals->currentInventoryLen] = itemStorage->itemName;
+
     globals->currentInventoryLen++;
+
+    free(globals->currentInventory);
+
+    globals->currentInventory = temp;
+    for (int i = 0; i < globals->currentInventoryLen++; i++){
+        globals->currentInventory[i] = strdup(temp[i]);
+    }
+
+    printf("\n");
 }
 
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
 
+}
+
+void OnItemDeleteButtonClicked(ButtonUI* btn){
+    Globals * globals = GetGlobalVariables();
 }

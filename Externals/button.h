@@ -10,6 +10,8 @@
 
 typedef struct ButtonUI ButtonUI;
 typedef struct ButtonUI{
+    char* objectName;
+
     Rectangle rect;
     Texture normalTexture;
     Texture pressedTexture;
