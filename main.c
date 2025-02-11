@@ -8,49 +8,21 @@
 #include "Externals/dialogue.c"
 #include "Externals/button.c"
 
-typedef enum {MAIN_SCREEN = 0, MAIN_GAME, SETTINGS } GameMenu;
-typedef enum {SCENE_COUNTER = 0, SCENE_SNACK_BAR, SCENE_BEVERAGE_BAR, SCENE_RAMEN_BAR, SCENE_STUFF_BAR} Scene;
-typedef enum {DIFFICULTY_EASY = 0, DIFFICULTY_NORMAL, DIFFICULTY_HARD} Difficulty;
-typedef struct {int health; int rating;} Player;
+#define CORNER_COUNTER 0
+#define CORNER_SNACKS 1
+#define CORNER_DRINKS 2
+#define CORNER_RAMENS 3
+#define CORNER_TOOLS 4
 
-// 싱글톤 구조체
-typedef struct {
-    GameMenu currentGameMenu;
-    Difficulty currentDifficulty;
-    int currentSceneIndex;
+#define SCENE_MAIN_TITLE 0
+#define SCENE_MAIN_GAME 1
+#define SCENE_SETTINGS 2
 
-} GameManager;
+#define DIFFICULTY_EASY "Easy"
+#define DIFFICULTY_NORMAL "Normal"
+#define DIFFICULTY_HARD "Hard"
 
-// 정적 변수로 싱글톤 객체 유지
-GameManager* GetGameManager() {
-    static GameManager instance = {0};  // 프로그램 실행 중 단 하나만 존재
-    return &instance;
-}
-
-cJSON* GetJsonData(char* fileName);
-
-void OnPrevSceneButtonClicked(ButtonUI* btn);
-
-void OnNextSceneButtonClicked(ButtonUI* btn);
-
-void OnItemStorageItemLeftClicked(ItemStorage* itemStorage);
-
-void OnItemStorageItemRightClicked(ItemStorage* itemStorage);
-
-void LoadFontAll(Font* font);
-
-char* GetSceneName();
-
-char* GetDifficultyName();
-
-void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath){
-    jsonData = GetJsonData(dialogueFilePath);
-    dialogue = GetDialogueData(jsonData);
-    *dialogueLen = GetDialogueLen(jsonData);
-    *currentDialogueIndex = 0;
-}
-
-int itemsPos[10][2] = {
+int itemUiPos[10][2] = {
     {200, 200},
     {350, 200},
     {500, 200},
@@ -64,22 +36,98 @@ int itemsPos[10][2] = {
     {800, 400},
 };
 
+// 싱글톤 구조체
+typedef struct {
+    char* currentDifficulty;
+    int currentSceneIndex;
+    int currentCornerIndex;
+
+    ItemStorage itemsButtonUIs[10];
+
+    // 플레이어 현재 스탯
+    int playerHealth;
+    int playerRating;
+
+    bool isInventoryOpened;
+    bool isPosMachineOpened;
+    bool isCardMachineOpened;
+} Globals;
+
+// 정적 변수로 싱글톤 객체 유지 이게 맞냐??
+Globals* GetGlobalVariables() {
+    static Globals instance = {0};  // 프로그램 실행 중 단 하나만 존재
+    return &instance;
+}
+
+cJSON* GetJsonData(char* fileName);
+
+char* GetCurrentCornerName();
+
+char* GetItemCategoryFolderPath();
+
+void OnPrevSceneButtonClicked(ButtonUI* btn);
+
+void OnNextSceneButtonClicked(ButtonUI* btn);
+
+void OnInventoryButtonClicked(ButtonUI* btn);
+
+void OnItemStorageItemLeftClicked(ItemStorage* itemStorage);
+
+void OnItemStorageItemRightClicked(ItemStorage* itemStorage);
+
+void LoadFontAll(Font* font);
+
+void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath){
+    jsonData = GetJsonData(dialogueFilePath);
+    dialogue = GetDialogueData(jsonData);
+    *dialogueLen = GetDialogueLen(jsonData);
+    *currentDialogueIndex = 0;
+}
+
+void LoadItemGraphics(ItemStorage* itemBtns){
+    cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
+    char* itemBar = GetItemCategoryFolderPath();
+    printf("%s\n", itemBar);
+    cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
+    for (int i = 0; i < 10; i++){
+        char temp[50];
+        sprintf(temp, "Assets/Images/Items/%s/%d.png", itemBar, i);
+        char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
+
+        itemBtns[i] = (ItemStorage){
+            (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 70, 70},
+            LoadTexture(temp),
+            itemName,
+            OnItemStorageItemLeftClicked,
+            OnItemStorageItemRightClicked
+        };
+    }
+}
+
+bool IsPopUpOpened();
+
 int main(void){
     InitWindow(1500, 900, "CU");
-    
+    //SetTargetFPS(500);
+
+    // 폰트 (한글도 되긴되게 했는데 FPS 2000대로 뚝떨어짐;)
     Font font;
     LoadFontAll(&font);
     
-    //SetTargetFPS(500);
+    // 글로벌 변수 초기화!!
+    Globals * globals = GetGlobalVariables();
+    globals->currentSceneIndex = SCENE_MAIN_TITLE;
+    globals->currentDifficulty = DIFFICULTY_NORMAL;
+    globals->currentCornerIndex = CORNER_COUNTER;
 
-    GameManager * gm = GetGameManager();
-    gm->currentSceneIndex = 0;
-    gm->currentDifficulty = DIFFICULTY_NORMAL;
+    globals->isInventoryOpened = false;
+    globals->isCardMachineOpened = false;
+    globals->isPosMachineOpened = false;
 
     // Dialogue
     char customerDialoguePath[256];
     char* customerName = "Normal Customer";
-    sprintf(customerDialoguePath, "Assets/Data/Customers/%s/%s.json", customerName, GetDifficultyName());
+    sprintf(customerDialoguePath, "Assets/Data/Customers/%s/%s.json", customerName, globals->currentDifficulty);
 
     cJSON* jsonData = GetJsonData(customerDialoguePath);
     char*** dialogue = GetDialogueData(jsonData);
@@ -88,12 +136,6 @@ int main(void){
 
     StartDialogue(jsonData, dialogue, &dialogueLen, &currentDialogueIndex, customerDialoguePath);
     // Dialogue End
-
-    // Player Status UI
-    Player playerStatus = (Player){100, 100};
-    char healthText[50] = "Health : 100";
-    char ratingText[50] = "Store Rating : 100";
-    // Player Status UI End
 
     Texture playerNormalTexture = LoadTexture("Assets/Images/Player/Idle.png");
     Texture blank = LoadTexture("Assets/Images/Backgrounds/Blank.png");
@@ -138,31 +180,26 @@ int main(void){
     Rectangle cardMachine = (Rectangle) {550, 600, 200, 100};
     // Hit Boxes End
 
-    ItemStorage itemsButtonUIs[10];
-    
-    cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
-    char* itemBar = "Snacks";
-    cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
-    for (int i = 0; i < 10; i++){
-        char temp[50];
-        sprintf(temp, "Assets/Images/Items/Snacks/%d.png", i);
-        char *itemName = cJSON_GetArrayItem(currentBar, i)->string;
-        itemsButtonUIs[i] = (ItemStorage){
-            (Rectangle){itemsPos[i][0], itemsPos[i][1], 70, 70},
-            LoadTexture(temp),
-            itemName,
-            OnItemStorageItemLeftClicked,
-            OnItemStorageItemRightClicked
-        };
-    }
+    // Inventory Start
+    ButtonUI inventoryButtonUI = (ButtonUI){
+        (Rectangle) {GetScreenWidth()-380, GetScreenHeight() -120, 100, 100},
+        LoadTexture("Assets/Images/UI/Inventory.png"),
+        LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
+        LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
+        NULL, 
+        OnInventoryButtonClicked
+    };
 
+    Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
+    // Inventory End
+    
     while (!WindowShouldClose()){
         float deltaTime = GetFrameTime();
-        switch (gm->currentGameMenu)
+        switch (globals->currentSceneIndex)
         {
-            case MAIN_SCREEN:
+            case SCENE_MAIN_TITLE:
                 if (IsKeyPressed(KEY_SPACE)){
-                    gm->currentGameMenu = MAIN_GAME;
+                    globals->currentSceneIndex = SCENE_MAIN_GAME;
                 }
 
                 BeginDrawing();
@@ -173,14 +210,14 @@ int main(void){
 
                 EndDrawing();
                 break;
-            case MAIN_GAME:
+
+            case SCENE_MAIN_GAME:
                 // Next Dialogue Key
-                if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_SPACE) ){
+                if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_SPACE) && IsPopUpOpened() == false){
                     int prevIndex = currentDialogueIndex;
                     currentDialogueIndex = fmin(dialogueLen - 1, currentDialogueIndex + 1);
                     if (prevIndex == currentDialogueIndex){
                         canMoveScene = true;
-                        printf("마지막 대화임!!!\n");
                     }
                 }
                 
@@ -188,22 +225,27 @@ int main(void){
                 customerPosX = fmin(270, customerPosX + 1500 * deltaTime);
                 
                 // 씬을 움직일수 있을때 버튼 업데이트
-                if (canMoveScene){
-                    for (int i = 0; i < 2; i++){
-                        UpdateButtonUI(&sceneMoveBtns[i]);
+                if (canMoveScene ){
+                    if (IsPopUpOpened() == false){
+                        for (int i = 0; i < 2; i++){
+                            UpdateButtonUI(&sceneMoveBtns[i]);
+                        }
+                    }
+                    if (globals->isCardMachineOpened == false && globals->isPosMachineOpened == false){
+                        UpdateButtonUI(&inventoryButtonUI); // 토글 방식이라 인벤ㅌㅌ
                     }
                 }
 
                 // 카운터가 아님
-                if (gm->currentSceneIndex != SCENE_COUNTER){
+                if (globals->currentCornerIndex != CORNER_COUNTER && IsPopUpOpened() == false){
                     for (int i = 0; i < 10; i++){
-                        UpdateItemStorage(&itemsButtonUIs[i]);
+                        UpdateItemStorage(&globals->itemsButtonUIs[i]);
                     }
                 }
                 
                 BeginDrawing();
-                    DrawTexture(backgrounds[gm->currentSceneIndex][0], 0, 0, WHITE);
-                    if (gm->currentSceneIndex == SCENE_COUNTER){
+                    DrawTexture(backgrounds[globals->currentCornerIndex][0], 0, 0, WHITE);
+                    if (globals->currentCornerIndex == CORNER_COUNTER){
                         DrawTextureV(currentCustomerTexture, (Vector2){customerPosX, 100}, WHITE);
                     
                         // DrawRectangleRec(posMachine, (Color){255, 0, 0, 100});
@@ -211,40 +253,27 @@ int main(void){
                     }
                     else{
                         for (int i = 0; i < 10; i++){
-                            RenderItemStorage(&itemsButtonUIs[i]);
+                            RenderItemStorage(&globals->itemsButtonUIs[i]);
                         }
                     }
                     // 카운터 책상 렌더에도 쓸수 있고 손 렌더할수도
-                    DrawTexture(backgrounds[gm->currentSceneIndex][1], 0, 0, WHITE);
+                    DrawTexture(backgrounds[globals->currentCornerIndex][1], 0, 0, WHITE);
                     
-                    
-
                     // Dialogue UI
                     DrawRectangleRec((Rectangle){0, GetScreenHeight() - 200, GetScreenWidth() - 400, 200}, BLACK);
                     DrawTextEx(font, dialogue[currentDialogueIndex][0], (Vector2){30, GetScreenHeight() - 180}, 50, 1, WHITE);
                     DrawTextEx(font, dialogue[currentDialogueIndex][1], (Vector2){80, GetScreenHeight() - 120}, 40, 1, WHITE);
                     // Dialogue UI End
 
-                    // Scene Move UI Start
-                    DrawRectangleRec((Rectangle){850, GetScreenHeight() - 200, 250, 200}, BROWN);
-                    if (canMoveScene){
-                        for (int i = 0; i < 2; i++){
-                            RenderButtonUI(&sceneMoveBtns[i]);
-                        }
-                    }
-                    
-                    char str[20];
-                    sprintf(str, "> %s", GetSceneName());
-                    DrawTextEx(font, str, (Vector2){870, 725}, 35, 2, WHITE);
-                    // Scene Move UI End
-
                     // Player Stats UI
                     DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, GetScreenHeight()}, BLACK); // 
                     DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, 120}, WHITE); // Time, Item UI
                     DrawTexture(playerNormalTexture, GetScreenWidth()-400, 0, WHITE);
                     
-                    sprintf(healthText, "Health : %d", playerStatus.health);
-                    sprintf(ratingText, "Store Rating : %d", playerStatus.rating);
+                    char healthText[50];
+                    char ratingText[50];
+                    sprintf(healthText, "Health : %d", globals->playerHealth); // sprintf에는 char*말고 char[]써야됨
+                    sprintf(ratingText, "Store Rating : %d", globals->playerRating); // char*는 그냥 쌩 문자열 데이터라고 생각하면 될듯
                     
                     DrawTextEx(font, healthText, (Vector2){GetScreenWidth()-390, 10}, 25, 2, BLACK);
                     DrawRectangleRec((Rectangle){GetScreenWidth()-390, 35, 300, 5}, RED);
@@ -252,6 +281,24 @@ int main(void){
                     DrawTextEx(font, ratingText, (Vector2){GetScreenWidth()-390, 50},25, 2, BLACK);
                     DrawRectangleRec((Rectangle){GetScreenWidth()-390, 80, 300, 5}, BLUE);
                     // Player Stats UI End
+
+                    // Scene Move UI Start
+                    DrawRectangleRec((Rectangle){850, GetScreenHeight() - 200, 250, 200}, BROWN);
+                    if (canMoveScene){
+                        for (int i = 0; i < 2; i++){
+                            RenderButtonUI(&sceneMoveBtns[i]);
+                        }
+                        RenderButtonUI(&inventoryButtonUI);
+                    }
+                    
+                    char str[20]; // 문자열 쓰기 해야되서 배열로;
+                    sprintf(str, "> %s", GetCurrentCornerName());
+                    DrawTextEx(font, str, (Vector2){870, 725}, 35, 2, WHITE);
+                    // Scene Move UI End
+
+                    if (globals->isInventoryOpened){
+                        DrawRectangleRec(inventoryBG, RED);
+                    }
 
                     DrawFPS(1400, 10);
 
@@ -267,6 +314,21 @@ int main(void){
     CloseWindow();
 
     return 0;
+}
+
+bool IsPopUpOpened(){
+    Globals* globals = GetGlobalVariables();
+    if (globals->isInventoryOpened){
+        return true;
+    }
+    else if (globals->isCardMachineOpened){
+        return true;
+    }
+    else if (globals->isPosMachineOpened){
+        return true;
+    }
+
+    return false;
 }
 
 cJSON* GetJsonData(char* fileName){
@@ -316,39 +378,63 @@ void LoadFontAll(Font* font){
     // 폰트 로드 (특정 폰트 사용)
     *font = LoadFontEx("Assets/Fonts/SB Aggro M.ttf", 70, codepoints, codepointCount);
     SetTextureFilter(font->texture, TEXTURE_FILTER_BILINEAR);
+    
+    // 메모리 프리하게 해줄게
+    free(codepoints);
 }
 
 void OnPrevSceneButtonClicked(ButtonUI* btn){
-    GameManager* gm = GetGameManager();
+    Globals* global = GetGlobalVariables();
 
-    gm->currentSceneIndex --;
-    if (gm->currentSceneIndex < 0){
-        gm->currentSceneIndex = 4;
+    global->currentCornerIndex --;
+    if (global->currentCornerIndex < 0){
+        global->currentCornerIndex = 4;
+    }
+
+    // 카운터에는 물건들을 두지 않음.
+    if (global->currentCornerIndex != CORNER_COUNTER){
+        LoadItemGraphics(global->itemsButtonUIs);
     }
 }
 
 void OnNextSceneButtonClicked(ButtonUI* btn){
-    GameManager* gm = GetGameManager();
+    Globals* global = GetGlobalVariables();
 
-    gm->currentSceneIndex ++;
-    if (gm->currentSceneIndex > 4){
-        gm->currentSceneIndex = 0;
+    global->currentCornerIndex ++;
+    if (global->currentCornerIndex > 4){
+        global->currentCornerIndex = 0;
+    }
+
+    if (global->currentCornerIndex != CORNER_COUNTER){
+        LoadItemGraphics(global->itemsButtonUIs);
     }
 }
 
-char* GetSceneName(){
-    GameManager* gm = GetGameManager();
-    switch (gm->currentSceneIndex)
+void OnInventoryButtonClicked(ButtonUI* btn){
+    Globals* globals = GetGlobalVariables();
+    if (globals->isInventoryOpened){
+        globals->isInventoryOpened = false;
+    }
+    else{
+        globals->isInventoryOpened = true;
+    }
+    
+}
+
+// UI 표시 내용
+char* GetCurrentCornerName(){
+    Globals* global = GetGlobalVariables();
+    switch (global->currentCornerIndex)
     {
-    case 0:
+    case CORNER_COUNTER:
         return "카운터";
-    case 1:
+    case CORNER_SNACKS:
         return "스낵류";
-    case 2:
+    case CORNER_DRINKS:
         return "음료류";
-    case 3:
+    case CORNER_RAMENS:
         return "라면류";
-    case 4:
+    case CORNER_TOOLS:
         return "생활용품류";
     
     default:
@@ -357,25 +443,28 @@ char* GetSceneName(){
     }
 }
 
-char* GetDifficultyName(){
-    GameManager* gm = GetGameManager();
-    switch (gm->currentDifficulty)
+// 파일 탐색용
+char* GetItemCategoryFolderPath(){
+    Globals* global = GetGlobalVariables();
+    switch (global->currentCornerIndex)
     {
-    case DIFFICULTY_EASY:
-        return "Easy";
-    case DIFFICULTY_NORMAL:
-        return "Normal";
-    case DIFFICULTY_HARD:
-        return "Hard";
+    case CORNER_SNACKS:
+        return "Snacks";
+    case CORNER_DRINKS:
+        return "Drinks";
+    case CORNER_RAMENS:
+        return "Ramens";
+    case CORNER_TOOLS:
+        return "Tools";
     
     default:
-        return "ERROR";
+        return "ERROR"; // 카운터에서 이거 부르면 에러남;
+        break;
     }
 }
 
-
 void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
-    printf("WWWWWWWWWWWWWWWWWWWWWAAAAAAAAAAAAAAAA\n");
+    printf("%s\n", itemStorage->itemName);
 }
 
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
