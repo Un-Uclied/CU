@@ -22,6 +22,8 @@
 #define DIFFICULTY_NORMAL "Normal"
 #define DIFFICULTY_HARD "Hard"
 
+#define INVENTORY_MAX_LEN 5
+
 int itemUiPos[10][2] = {
     {200, 200},
     {350, 200},
@@ -53,6 +55,7 @@ typedef struct {
     bool isCardMachineOpened;
 
     char* currentInventory[5];
+    Texture currentInventoryItemTextures[5];
     int currentInventoryLen;
 } Globals;
 
@@ -194,6 +197,8 @@ int main(void){
     };
 
     Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
+
+    Texture inventoryTexture[5];
     // Inventory End
     
     while (!WindowShouldClose()){
@@ -305,6 +310,12 @@ int main(void){
                         char temp[50];
                         sprintf(temp, "인벤토리 %d / 5", globals->currentInventoryLen);
                         DrawTextEx(font, temp, (Vector2){35, 35}, 40, 2, WHITE);
+                        
+                        for (int i = 0; i < INVENTORY_MAX_LEN; i++){
+                            DrawRectangleGradientV(20, i * 120 + 100, 1060, 100, BLUE, (Color){ 0, 101, 211, 255 } );
+                            DrawTextEx(font, globals->currentInventory[i], (Vector2){45, i * 120 + 100}, 40, 2, WHITE);
+                            DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){860, i * 120 + 90}, WHITE);
+                        }
                     }
 
                     DrawFPS(1400, 10);
@@ -472,6 +483,13 @@ char* GetItemCategoryFolderPath(){
 
 void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
     printf("%s\n", itemStorage->itemName);
+    Globals* globals = GetGlobalVariables();
+    if (globals->currentInventoryLen == INVENTORY_MAX_LEN){
+        return;
+    }
+    globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
+    globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
+    globals->currentInventoryLen++;
 }
 
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
