@@ -51,3 +51,17 @@ void UpdateItemStorage(ItemStorage* storage){
 void RenderItemStorage(ItemStorage* storage){
     DrawTexture(storage->texture, storage->rect.x, storage->rect.y, WHITE);
 }
+
+void UpdateTransparentButton(TransparentButton* btn){
+    bool leftAction = false;
+    if (CheckCollisionPointRec(GetMousePosition(), btn->rect)){
+        btn->OnHovered(btn);
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+            leftAction = true;
+        }
+    }
+
+    if (leftAction){
+        btn->OnClick(btn);
+    }
+}

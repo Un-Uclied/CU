@@ -24,10 +24,17 @@
 
 #define INVENTORY_MAX_LEN 5
 
+typedef enum{
+    TIME_DAY, TIME_NIGHT
+} DayTime;
+
 typedef struct Globals {
     char* currentDifficulty;
     int currentSceneIndex;
     int currentCornerIndex;
+
+    char* currentSpeaker;
+    char* currentText;
 
     ItemStorage itemsButtonUIs[10];
 
@@ -41,12 +48,15 @@ typedef struct Globals {
 
     char** currentInventory; // 연결 리스트 구현하기 귀찮;
     Texture* currentInventoryItemTextures;
+    char** currentInventoryItemPrice;
     int currentInventoryLen;
 
     Rectangle toolTipRect;
     char* toolTipName;
     char* toolTipText;
     bool isToolTipShow;
+
+    DayTime currentTime;
 } Globals;
 
 int itemUiPos[10][2] = {
@@ -86,7 +96,8 @@ void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* cur
 bool IsPopUpOpened();
 
 // 버튼은 main함수에서 만들기에 선언을 미리 하고 구현은 아래에서 함
-ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent);
+ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
+TransparentButton NewTransparentButton(char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
 
 void OnPrevSceneButtonClicked(ButtonUI* btn);
 void OnNextSceneButtonClicked(ButtonUI* btn);
@@ -94,6 +105,12 @@ void OnNextSceneButtonClicked(ButtonUI* btn);
 void OnInventoryButtonClicked(ButtonUI* btn);
 
 void OnItemDeleteButtonClicked(ButtonUI* btn);
+
+void OnCustomerButtonClicked(TransparentButton* btn);
+
+void OnCardReaderButtonClicked(TransparentButton* btn);
+
+void OnPosMachineButtonClicked(TransparentButton* btn);
 
 int main(void){
     InitWindow(1500, 900, "CU");
@@ -115,13 +132,16 @@ int main(void){
 
     globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     globals->currentInventoryItemTextures = (Texture*)malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
+    globals->currentInventoryItemPrice = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
 
     globals->toolTipRect = (Rectangle){0, 0, 200, 70};
 
+    globals->currentTime = TIME_DAY;
+ 
     // Dialogue
     char customerDialoguePath[256];
     char* customerName = "Normal Customer";
-    sprintf(customerDialoguePath, "Assets/Data/Customers/%s/%s.json", customerName, globals->currentDifficulty);
+    sprintf(customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", customerName, globals->currentDifficulty);
 
     cJSON* jsonData = GetJsonData(customerDialoguePath);
     char*** dialogue = GetDialogueData(jsonData);
@@ -149,26 +169,31 @@ int main(void){
     float customerPosX = -currentCustomerTexture.width;
 
     // Scene Move Start
-    bool canMoveScene = false;
+    bool canMoveCorner = false;
     ButtonUI sceneMoveBtns[2] = {
         NewButton("", (Rectangle){850, GetScreenHeight() - 120, 100, 100},
             LoadTexture("Assets/Images/UI/Go Left.png"),
             LoadTexture("Assets/Images/UI/Go Left Pressed.png"),
             LoadTexture("Assets/Images/UI/Go Left Hovered.png"),
-            OnPrevSceneButtonClicked),
+            OnPrevSceneButtonClicked,
+            false, "", ""
+        ),
 
         NewButton("", (Rectangle){1000, GetScreenHeight() - 120, 100, 100},
             LoadTexture("Assets/Images/UI/Go Right.png"),
             LoadTexture("Assets/Images/UI/Go Right Pressed.png"),
             LoadTexture("Assets/Images/UI/Go Right Hovered.png"),
-            OnNextSceneButtonClicked)
+            OnNextSceneButtonClicked,
+            false, "", ""
+        )
     };
     // Scene Move End
 
-    // Hit Boxes Start
-    Rectangle posMachine = (Rectangle) {820, 280, 280, 420};
-    Rectangle cardMachine = (Rectangle) {550, 600, 200, 100};
-    // Hit Boxes End
+    // 계산 Start
+    TransparentButton customerButton = NewTransparentButton("customer", (Rectangle) {380, 180, 420, 420}, OnCustomerButtonClicked, true, "손님", "물건 결제 시작하기");
+    TransparentButton posMachineButton = NewTransparentButton("posMachine", (Rectangle) {820, 280, 280, 420}, OnPosMachineButtonClicked, true, "포스기", "아직 결제중이 아니다");
+    TransparentButton cardMachineButton = NewTransparentButton("cardMachine", (Rectangle) {550, 600, 200, 100}, OnCardReaderButtonClicked, true, "카드 리더기", "아직 결제중이 아니다");
+    // 계산 End
 
     // Inventory Start
     ButtonUI inventoryButtonUI  = NewButton("", // 이름 필요 없음;
@@ -176,7 +201,8 @@ int main(void){
         LoadTexture("Assets/Images/UI/Inventory.png"),
         LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
         LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
-        OnInventoryButtonClicked
+        OnInventoryButtonClicked,
+        false, "", ""
     );
     
     Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
@@ -193,10 +219,14 @@ int main(void){
             LoadTexture("Assets/Images/UI/Close Inventory.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Hovered.png"), 
-            OnItemDeleteButtonClicked
+            OnItemDeleteButtonClicked,
+            false, "", ""
         );
     }
     // Inventory End
+
+    // Time Start
+    Texture clock = LoadTexture("Assets/Images/UI/Clock.png");
     
     while (!WindowShouldClose()){
         float deltaTime = GetFrameTime();
@@ -217,12 +247,17 @@ int main(void){
                 break;
 
             case SCENE_MAIN_GAME:
+                globals->isToolTipShow = false;
                 // Next Dialogue Key
                 if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_SPACE) && IsPopUpOpened() == false){
                     int prevIndex = currentDialogueIndex;
                     currentDialogueIndex = fmin(dialogueLen - 1, currentDialogueIndex + 1);
                     if (prevIndex == currentDialogueIndex){
-                        canMoveScene = true;
+                        canMoveCorner = true;
+                    }
+                    else{
+                        globals->currentSpeaker = dialogue[currentDialogueIndex][0];
+                        globals->currentText = dialogue[currentDialogueIndex][1];
                     }
                 }
                 
@@ -230,7 +265,14 @@ int main(void){
                 customerPosX = fmin(270, customerPosX + 1500 * deltaTime);
                 
                 // 씬을 움직일수 있을때 버튼 업데이트
-                if (canMoveScene ){
+                if (canMoveCorner){
+                    if (globals->currentCornerIndex == CORNER_COUNTER){
+                        UpdateTransparentButton(&customerButton);
+                        UpdateTransparentButton(&posMachineButton);
+                        UpdateTransparentButton(&cardMachineButton);
+                    }
+                    
+
                     if (IsPopUpOpened() == false){
                         for (int i = 0; i < 2; i++){
                             UpdateButtonUI(&sceneMoveBtns[i]);
@@ -242,7 +284,6 @@ int main(void){
                 }
 
                 // 카운터가 아님
-                globals->isToolTipShow = false;
                 if (globals->currentCornerIndex != CORNER_COUNTER && IsPopUpOpened() == false){
                     for (int i = 0; i < 10; i++){
                         UpdateItemStorage(&globals->itemsButtonUIs[i]);
@@ -262,9 +303,6 @@ int main(void){
                     DrawTexture(backgrounds[globals->currentCornerIndex][0], 0, 0, WHITE);
                     if (globals->currentCornerIndex == CORNER_COUNTER){
                         DrawTextureV(currentCustomerTexture, (Vector2){customerPosX, 100}, WHITE);
-                    
-                        // DrawRectangleRec(posMachine, (Color){255, 0, 0, 100});
-                        // DrawRectangleRec(cardMachine, (Color){0, 255, 0, 100});
                     }
                     else{
                         for (int i = 0; i < 10; i++){
@@ -279,8 +317,8 @@ int main(void){
                     
                     // Dialogue UI
                     DrawRectangleRec((Rectangle){0, GetScreenHeight() - 200, GetScreenWidth() - 400, 200}, BLACK);
-                    DrawTextEx(font, dialogue[currentDialogueIndex][0], (Vector2){30, GetScreenHeight() - 180}, 50, 1, WHITE);
-                    DrawTextEx(font, dialogue[currentDialogueIndex][1], (Vector2){80, GetScreenHeight() - 120}, 40, 1, WHITE);
+                    DrawTextEx(font, globals->currentSpeaker, (Vector2){30, GetScreenHeight() - 180}, 50, 1, WHITE);
+                    DrawTextEx(font, globals->currentText, (Vector2){80, GetScreenHeight() - 120}, 40, 1, WHITE);
                     // Dialogue UI End
 
                     // Player Stats UI
@@ -300,9 +338,14 @@ int main(void){
                     DrawRectangleRec((Rectangle){GetScreenWidth()-390, 80, 300, 5}, BLUE);
                     // Player Stats UI End
 
+                    // 현재 시간 보여줌
+                    if (globals->currentCornerIndex == CORNER_COUNTER){
+                        DrawTexture(clock, 40, 600, WHITE);
+                    }
+
                     // Scene Move UI Start
                     DrawRectangleRec((Rectangle){850, GetScreenHeight() - 200, 250, 200}, BROWN);
-                    if (canMoveScene){
+                    if (canMoveCorner){
                         for (int i = 0; i < 2; i++){
                             RenderButtonUI(&sceneMoveBtns[i]);
                         }
@@ -325,11 +368,13 @@ int main(void){
                         for (int i = 0; i < INVENTORY_MAX_LEN; i++){
                             DrawRectangleGradientV(20, i * 120 + 100, 1060, 100, BLUE, (Color){ 0, 101, 211, 255 } );
                         }
-
+                        
+                        // 인벤토리에 있는 아이템 정보 렌더
                         for (int i = 0; i < globals->currentInventoryLen; i++){
                             DrawTextEx(font, globals->currentInventory[i], (Vector2){45, i * 120 + 100}, 40, 2, WHITE);
+                            DrawTextEx(font, globals->currentInventoryItemPrice[i], (Vector2){505, i * 120 + 100}, 40, 2, WHITE);
                             DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){820, i * 120 + 90}, WHITE);
-                            RenderButtonUI(&inventoryDeleteButtons[i]);
+                            RenderButtonUI(&inventoryDeleteButtons[i]); // 아이템 지우기 버튼
                         }
                     }
                     // Inventory UI End
@@ -338,6 +383,7 @@ int main(void){
                     if (globals->isToolTipShow){
                         DrawRectangleRec(globals->toolTipRect, RAYWHITE);
                         DrawTextEx(font, globals->toolTipName, (Vector2){globals->toolTipRect.x + 5, globals->toolTipRect.y + 5}, 20, 2, BLACK);
+                        DrawTextEx(font, globals->toolTipText, (Vector2){globals->toolTipRect.x + 5, globals->toolTipRect.y + 30}, 15, 2, BLACK);
                     }
                     // ToolTip Draw End
 
@@ -458,9 +504,10 @@ char* GetItemCategoryFolderPath(){
 
 // UI EVENTS START =========================================================================================
 
-// 선언
+// 먼저 선언
 void MakeItemStorageButton(ItemStorage* itemBtns);
 
+// 전의 코너로 돌아가기 버튼 구현
 void OnPrevSceneButtonClicked(ButtonUI* btn){
     Globals* global = GetGlobalVariables();
 
@@ -475,6 +522,7 @@ void OnPrevSceneButtonClicked(ButtonUI* btn){
     }
 }
 
+// 다음 코너로 가기 버튼 구현
 void OnNextSceneButtonClicked(ButtonUI* btn){
     Globals* global = GetGlobalVariables();
 
@@ -488,6 +536,7 @@ void OnNextSceneButtonClicked(ButtonUI* btn){
     }
 }
 
+// 인벤토리 버튼 구현
 void OnInventoryButtonClicked(ButtonUI* btn){
     Globals* globals = GetGlobalVariables();
     if (globals->isInventoryOpened){
@@ -498,66 +547,106 @@ void OnInventoryButtonClicked(ButtonUI* btn){
     }
 }
 
-
+// 아이템 얻는 버튼 왼쪽 클릭 구현
 void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
     Globals* globals = GetGlobalVariables();
     if (globals->currentInventoryLen == INVENTORY_MAX_LEN){
         return;
     }
 
+    // 인벤토리에 아이템 저장
     globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
     globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
+    
+    char price[10]; // 숫자를 문자열로 바꿔서 저장 (매 프레임마다 계속 정수를 문자열로 바꾸는것보단 성능 좋겠제)
+    sprintf(price, "%d\\", itemStorage->price);
+    globals->currentInventoryItemPrice[globals->currentInventoryLen] = strdup(price);
     globals->currentInventoryLen ++;
+
+    char text[50];
+    sprintf(text, "(%s을(를) 바구니에 담았다.)", itemStorage->itemName);
+    globals->currentSpeaker = "당신";
+    globals->currentText = strdup(text);
 }
 
+// 아이템 얻는 버튼 오른쪽 클릭 구현
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
 
 }
 
+// 아이템 지우는 버튼 구현
 void OnItemDeleteButtonClicked(ButtonUI* btn){
     Globals * globals = GetGlobalVariables();
     globals->currentInventory[atoi(btn->objectName)] = NULL;
-    globals->currentInventoryItemTextures[atoi(btn->objectName)].id = 0; // Texture **로 하기 귀찮아서 걍 id가 0인건 지워야할거로 생각
     int prevSize = globals->currentInventoryLen;
     globals->currentInventoryLen --;
 
     char** temp = (char**)malloc(sizeof(char*) * globals->currentInventoryLen);
+    Texture* textureTemp = (Texture*)malloc(sizeof(Texture) * globals->currentInventoryLen);
+    char** priceTemp = (char**)malloc(sizeof(char*) * globals->currentInventoryLen);
+
     int j = 0;
     for (int i = 0; i < prevSize; i++){
         if (globals->currentInventory[i] != NULL){
             temp[j] = globals->currentInventory[i];
+            textureTemp[j] = globals->currentInventoryItemTextures[i];
+            priceTemp[j] = globals->currentInventoryItemPrice[i];
             j++;   
-        }
-    }
-
-    Texture* textureTemp = (Texture*)malloc(sizeof(Texture) * globals->currentInventoryLen);
-    int l = 0;
-    for (int i = 0; i < prevSize; i++){
-        if (globals->currentInventoryItemTextures[i].id != 0){
-            textureTemp[l] = globals->currentInventoryItemTextures[i];
-            l++;   
         }
     }
 
     free(globals->currentInventory);
     free(globals->currentInventoryItemTextures);
+    free(globals->currentInventoryItemPrice);
+
     globals->currentInventory = temp;
     globals->currentInventoryItemTextures = textureTemp;
+    globals->currentInventoryItemPrice = priceTemp;
+}
+
+// 손님 클릭
+void OnCustomerButtonClicked(TransparentButton* btn){
+    Globals* globals = GetGlobalVariables();
+    if (globals->currentInventoryLen == 0){
+        globals->currentSpeaker = "당신";
+        globals->currentText = "(아직 손님이 요청한\n물건들을 갖고 오지 않은것같다.)";
+    }
+}
+
+// 카드 리더기 버튼 구현
+void OnCardReaderButtonClicked(TransparentButton* btn){
+    printf("Card Reader\n");
+}
+
+// 포스기 버튼 구현
+void OnPosMachineButtonClicked(TransparentButton* btn){
+    printf("Pos Machine\n");
 }
 
 void OnButtonUIHovered(ButtonUI* buttonUI){
     Globals* globals = GetGlobalVariables();
 }
 
+void OnTransparentButtonUIHovered(TransparentButton* buttonUI){
+    Globals* globals = GetGlobalVariables();
+    globals->isToolTipShow = true;
+    globals->toolTipName = buttonUI->toolTip.toolTipName;
+    globals->toolTipText = buttonUI->toolTip.toolTipText;
+}
+
 void OnItemStorageUIHovered(ItemStorage* itemStorageUI){
     Globals* globals = GetGlobalVariables();
     globals->isToolTipShow = true;
     globals->toolTipName = itemStorageUI->itemName;
+
+    char priceText[10];
+    sprintf(priceText, "%d\\", itemStorageUI->price);
+    globals->toolTipText = strdup(priceText);
 }
 
 
-// 새버튼 만들고 반환환
-ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent){
+// 새 버튼 만들고 반환
+ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
     ButtonUI newButton = (ButtonUI){
         objectName, 
         hitBox,
@@ -565,9 +654,24 @@ ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Te
         pressedTexture,
         hoveredTexture,
         NULL,
-        clickedEvent, OnButtonUIHovered
+        clickedEvent, OnButtonUIHovered,
+        (ButtonTooltip){
+            showTooltip, toolTipName, toolTipText
+        }
     };
     newButton.currentTexture = &newButton.normalTexture;
+    return newButton;
+}
+
+// 새 투명 버튼 만들고 반환
+TransparentButton NewTransparentButton(char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
+    TransparentButton newButton = (TransparentButton){
+        objectName, hitBox, 
+        clickedEvent, OnTransparentButtonUIHovered,
+        (ButtonTooltip){
+            showTooltip, toolTipName, toolTipText
+        }
+    };
     return newButton;
 }
 
@@ -576,15 +680,24 @@ void MakeItemStorageButton(ItemStorage* itemBtns){
     cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
     char* itemBar = GetItemCategoryFolderPath();
     cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
+
+    char itemPriceObjectName[50];
+    sprintf(itemPriceObjectName, "%s Price", itemBar);
+    cJSON* itemPriceObject = cJSON_GetObjectItem(itemsData, itemPriceObjectName);
+
     for (int i = 0; i < 10; i++){
         char temp[50];
         sprintf(temp, "Assets/Images/Items/%s/%d.png", itemBar, i);
         char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
+        int itemPrice = cJSON_GetObjectItem(itemPriceObject, itemName)->valueint;
+
+        printf("%d\n", itemPrice);
 
         itemBtns[i] = (ItemStorage){
             (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 100, 100},
             LoadTexture(temp),
             itemName,
+            itemPrice,
             OnItemStorageItemLeftClicked,
             OnItemStorageItemRightClicked,
             OnItemStorageUIHovered
