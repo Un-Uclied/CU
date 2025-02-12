@@ -70,27 +70,9 @@ Globals* GetGlobalVariables() {
     return &instance;
 }
 
-cJSON* GetJsonData(char* fileName);
-
 char* GetCurrentCornerName();
 
 char* GetItemCategoryFolderPath();
-
-void OnPrevSceneButtonClicked(ButtonUI* btn);
-
-void OnNextSceneButtonClicked(ButtonUI* btn);
-
-void OnInventoryButtonClicked(ButtonUI* btn);
-
-void OnItemStorageItemLeftClicked(ItemStorage* itemStorage);
-
-void OnItemStorageItemRightClicked(ItemStorage* itemStorage);
-
-void OnItemDeleteButtonClicked(ButtonUI* btn);
-
-void OnButtonUIHovered(ButtonUI* buttonUI);
-
-void OnItemStorageUIHovered(ItemStorage* itemStorageUI);
 
 void LoadFontAll(Font* font);
 
@@ -101,27 +83,17 @@ void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* cur
     *currentDialogueIndex = 0;
 }
 
-void LoadItemGraphics(ItemStorage* itemBtns){
-    cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
-    char* itemBar = GetItemCategoryFolderPath();
-    cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
-    for (int i = 0; i < 10; i++){
-        char temp[50];
-        sprintf(temp, "Assets/Images/Items/%s/%d.png", itemBar, i);
-        char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
-
-        itemBtns[i] = (ItemStorage){
-            (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 100, 100},
-            LoadTexture(temp),
-            itemName,
-            OnItemStorageItemLeftClicked,
-            OnItemStorageItemRightClicked,
-            OnItemStorageUIHovered
-        };
-    }
-}
-
 bool IsPopUpOpened();
+
+// 버튼은 main함수에서 만들기에 선언을 미리 하고 구현은 아래에서 함
+ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent);
+
+void OnPrevSceneButtonClicked(ButtonUI* btn);
+void OnNextSceneButtonClicked(ButtonUI* btn);
+
+void OnInventoryButtonClicked(ButtonUI* btn);
+
+void OnItemDeleteButtonClicked(ButtonUI* btn);
 
 int main(void){
     InitWindow(1500, 900, "CU");
@@ -178,29 +150,19 @@ int main(void){
 
     // Scene Move Start
     bool canMoveScene = false;
-    ButtonUI nextSceneButton = (ButtonUI){
-        "", // 이름 필요 없음;
-        (Rectangle){1000, GetScreenHeight() - 120, 100, 100},
-        LoadTexture("Assets/Images/UI/Go Right.png"),
-        LoadTexture("Assets/Images/UI/Go Right Pressed.png"),
-        LoadTexture("Assets/Images/UI/Go Right Hovered.png"),
-        NULL,
-        OnNextSceneButtonClicked, OnButtonUIHovered
-    };
-    nextSceneButton.currentTexture = &nextSceneButton.normalTexture;
+    ButtonUI sceneMoveBtns[2] = {
+        NewButton("", (Rectangle){850, GetScreenHeight() - 120, 100, 100},
+            LoadTexture("Assets/Images/UI/Go Left.png"),
+            LoadTexture("Assets/Images/UI/Go Left Pressed.png"),
+            LoadTexture("Assets/Images/UI/Go Left Hovered.png"),
+            OnPrevSceneButtonClicked),
 
-    ButtonUI prevSceneButton = (ButtonUI){
-        "", // 이름 필요 없음;
-        (Rectangle){850, GetScreenHeight() - 120, 100, 100},
-        LoadTexture("Assets/Images/UI/Go Left.png"),
-        LoadTexture("Assets/Images/UI/Go Left Pressed.png"),
-        LoadTexture("Assets/Images/UI/Go Left Hovered.png"),
-        NULL,
-        OnPrevSceneButtonClicked, OnButtonUIHovered
+        NewButton("", (Rectangle){1000, GetScreenHeight() - 120, 100, 100},
+            LoadTexture("Assets/Images/UI/Go Right.png"),
+            LoadTexture("Assets/Images/UI/Go Right Pressed.png"),
+            LoadTexture("Assets/Images/UI/Go Right Hovered.png"),
+            OnNextSceneButtonClicked)
     };
-    prevSceneButton.currentTexture = &prevSceneButton.normalTexture;
-
-    ButtonUI sceneMoveBtns[2] = {prevSceneButton, nextSceneButton};
     // Scene Move End
 
     // Hit Boxes Start
@@ -209,16 +171,14 @@ int main(void){
     // Hit Boxes End
 
     // Inventory Start
-    ButtonUI inventoryButtonUI = (ButtonUI){
-        "", // 이름 필요 없음;
+    ButtonUI inventoryButtonUI  = NewButton("", // 이름 필요 없음;
         (Rectangle) {GetScreenWidth()-380, GetScreenHeight() -120, 100, 100},
         LoadTexture("Assets/Images/UI/Inventory.png"),
         LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
         LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
-        NULL, 
-        OnInventoryButtonClicked, OnButtonUIHovered   
-    };
-
+        OnInventoryButtonClicked
+    );
+    
     Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
 
     Texture inventoryTexture[5];
@@ -227,15 +187,14 @@ int main(void){
     for (int i = 0; i < INVENTORY_MAX_LEN; i++){
         char* name = (char*)MemAlloc(sizeof(char) * 10);
         sprintf(name, "%d", i);
-        inventoryDeleteButtons[i] = (ButtonUI){
+        inventoryDeleteButtons[i] = NewButton(
             name,
             (Rectangle) {950, i * 120 + 90, 100, 100},
             LoadTexture("Assets/Images/UI/Close Inventory.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
-            LoadTexture("Assets/Images/UI/Close Inventory Hovered.png"),
-            NULL, 
-            OnItemDeleteButtonClicked, OnButtonUIHovered
-        };
+            LoadTexture("Assets/Images/UI/Close Inventory Hovered.png"), 
+            OnItemDeleteButtonClicked
+        );
     }
     // Inventory End
     
@@ -413,16 +372,6 @@ bool IsPopUpOpened(){
     return false;
 }
 
-cJSON* GetJsonData(char* fileName){
-    cJSON* jsonData = GetDialogueJson(fileName);
-    if (jsonData == NULL){
-        exit(-1);
-    }
-    else{
-        return jsonData;
-    }
-}
-
 void LoadFontAll(Font* font){
     // 코드포인트 배열 생성 (영어, 숫자, 특수기호, 한글)
     int codepointCount = 0;
@@ -465,43 +414,6 @@ void LoadFontAll(Font* font){
     free(codepoints);
 }
 
-void OnPrevSceneButtonClicked(ButtonUI* btn){
-    Globals* global = GetGlobalVariables();
-
-    global->currentCornerIndex --;
-    if (global->currentCornerIndex < 0){
-        global->currentCornerIndex = 4;
-    }
-
-    // 카운터에는 물건들을 두지 않음.
-    if (global->currentCornerIndex != CORNER_COUNTER){
-        LoadItemGraphics(global->itemsButtonUIs);
-    }
-}
-
-void OnNextSceneButtonClicked(ButtonUI* btn){
-    Globals* global = GetGlobalVariables();
-
-    global->currentCornerIndex ++;
-    if (global->currentCornerIndex > 4){
-        global->currentCornerIndex = 0;
-    }
-
-    if (global->currentCornerIndex != CORNER_COUNTER){
-        LoadItemGraphics(global->itemsButtonUIs);
-    }
-}
-
-void OnInventoryButtonClicked(ButtonUI* btn){
-    Globals* globals = GetGlobalVariables();
-    if (globals->isInventoryOpened){
-        globals->isInventoryOpened = false;
-    }
-    else{
-        globals->isInventoryOpened = true;
-    }
-}
-
 // UI 표시 내용
 char* GetCurrentCornerName(){
     Globals* global = GetGlobalVariables();
@@ -541,6 +453,48 @@ char* GetItemCategoryFolderPath(){
     default:
         return "ERROR"; // 카운터에서 이거 부르면 에러남;
         break;
+    }
+}
+
+// UI EVENTS START =========================================================================================
+
+// 선언
+void MakeItemStorageButton(ItemStorage* itemBtns);
+
+void OnPrevSceneButtonClicked(ButtonUI* btn){
+    Globals* global = GetGlobalVariables();
+
+    global->currentCornerIndex --;
+    if (global->currentCornerIndex < 0){
+        global->currentCornerIndex = 4;
+    }
+
+    // 카운터에는 물건들을 두지 않음.
+    if (global->currentCornerIndex != CORNER_COUNTER){
+        MakeItemStorageButton(global->itemsButtonUIs);
+    }
+}
+
+void OnNextSceneButtonClicked(ButtonUI* btn){
+    Globals* global = GetGlobalVariables();
+
+    global->currentCornerIndex ++;
+    if (global->currentCornerIndex > 4){
+        global->currentCornerIndex = 0;
+    }
+
+    if (global->currentCornerIndex != CORNER_COUNTER){
+        MakeItemStorageButton(global->itemsButtonUIs);
+    }
+}
+
+void OnInventoryButtonClicked(ButtonUI* btn){
+    Globals* globals = GetGlobalVariables();
+    if (globals->isInventoryOpened){
+        globals->isInventoryOpened = false;
+    }
+    else{
+        globals->isInventoryOpened = true;
     }
 }
 
@@ -599,4 +553,41 @@ void OnItemStorageUIHovered(ItemStorage* itemStorageUI){
     Globals* globals = GetGlobalVariables();
     globals->isToolTipShow = true;
     globals->toolTipName = itemStorageUI->itemName;
+}
+
+
+// 새버튼 만들고 반환환
+ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent){
+    ButtonUI newButton = (ButtonUI){
+        objectName, 
+        hitBox,
+        normalTexture,
+        pressedTexture,
+        hoveredTexture,
+        NULL,
+        clickedEvent, OnButtonUIHovered
+    };
+    newButton.currentTexture = &newButton.normalTexture;
+    return newButton;
+}
+
+// 아이템 버튼 체인지
+void MakeItemStorageButton(ItemStorage* itemBtns){
+    cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
+    char* itemBar = GetItemCategoryFolderPath();
+    cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
+    for (int i = 0; i < 10; i++){
+        char temp[50];
+        sprintf(temp, "Assets/Images/Items/%s/%d.png", itemBar, i);
+        char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
+
+        itemBtns[i] = (ItemStorage){
+            (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 100, 100},
+            LoadTexture(temp),
+            itemName,
+            OnItemStorageItemLeftClicked,
+            OnItemStorageItemRightClicked,
+            OnItemStorageUIHovered
+        };
+    }
 }

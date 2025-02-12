@@ -19,7 +19,7 @@ char *ReadFileToString(const char *filename) {
     return buffer;
 }
 
-cJSON* GetDialogueJson(char* dialogueFileName){
+cJSON* GetJson(char* dialogueFileName){
     // JSON 파일 읽기
     char *jsonString = ReadFileToString(dialogueFileName);
     printf("%s\n", dialogueFileName);
@@ -35,6 +35,16 @@ cJSON* GetDialogueJson(char* dialogueFileName){
     }
 
     return json;
+}
+
+cJSON* GetJsonData(char* fileName){
+    cJSON* jsonData = GetJson(fileName);
+    if (jsonData == NULL){
+        exit(-1);
+    }
+    else{
+        return jsonData;
+    }
 }
 
 int GetDialogueLen(cJSON* json){

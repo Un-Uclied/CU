@@ -2,6 +2,9 @@
     "files.associations": {
         "raymath.h": "c",
         "raylib.h": "c",
-        "globals.h": "c"
+        "globals.h": "c",
+        "string.h": "c",
+        "stdio.h": "c",
+        "uievents.h": "c"
     }
 }
