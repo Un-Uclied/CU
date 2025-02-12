@@ -85,3 +85,20 @@ char*** GetDialogueData(cJSON* json){
 
     return dialogue;
 }
+
+char** GetNeededItemsFromDialogue(cJSON* jsonData){
+    cJSON* neededItemArray = cJSON_GetObjectItem(jsonData, "item");
+    int neededItemCount = cJSON_GetArraySize(neededItemArray);
+    char** neededItems = (char**)malloc(sizeof(char*) * neededItemCount);
+   
+    for (int i = 0; i < neededItemCount; i++){
+        neededItems[i] = cJSON_GetArrayItem(neededItemArray, i)->valuestring;
+    }
+
+    return neededItems;
+}
+
+int GetNeededItemsLengthFromDialogue(cJSON* jsonData){
+    cJSON* neededItemArray = cJSON_GetObjectItem(jsonData, "item");
+    return cJSON_GetArraySize(neededItemArray);
+}
