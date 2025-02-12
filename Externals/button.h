@@ -19,6 +19,8 @@ typedef struct ButtonUI{
     Texture* currentTexture;
 
     void (*OnClick)();
+
+    void (*OnHovered)();
 } ButtonUI;
 
 typedef struct ItemStorage ItemStorage;
@@ -29,6 +31,8 @@ typedef struct ItemStorage{
 
     void (*OnLeftClick)();
     void (*OnRightClick)();
+
+    void (*OnHovered)();
 } ItemStorage;
 
 void UpdateButtonUI(ButtonUI* btn);

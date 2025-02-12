@@ -24,22 +24,7 @@
 
 #define INVENTORY_MAX_LEN 5
 
-int itemUiPos[10][2] = {
-    {200, 200},
-    {350, 200},
-    {500, 200},
-    {640, 200},
-    {800, 200},
-
-    {200, 400},
-    {350, 400},
-    {500, 400},
-    {640, 400},
-    {800, 400},
-};
-
-// 싱글톤 구조체
-typedef struct {
+typedef struct Globals {
     char* currentDifficulty;
     int currentSceneIndex;
     int currentCornerIndex;
@@ -59,7 +44,25 @@ typedef struct {
     int currentInventoryLen;
 
     Rectangle toolTipRect;
+    char* toolTipName;
+    char* toolTipText;
+    bool isToolTipShow;
 } Globals;
+
+int itemUiPos[10][2] = {
+    {200, 200},
+    {350, 200},
+    {500, 200},
+    {640, 200},
+    {800, 200},
+
+    {200, 400},
+    {350, 400},
+    {500, 400},
+    {640, 400},
+    {800, 400},
+};
+
 
 // 정적 변수로 싱글톤 객체 유지 이게 맞냐??
 Globals* GetGlobalVariables() {
@@ -85,6 +88,10 @@ void OnItemStorageItemRightClicked(ItemStorage* itemStorage);
 
 void OnItemDeleteButtonClicked(ButtonUI* btn);
 
+void OnButtonUIHovered(ButtonUI* buttonUI);
+
+void OnItemStorageUIHovered(ItemStorage* itemStorageUI);
+
 void LoadFontAll(Font* font);
 
 void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath){
@@ -104,11 +111,12 @@ void LoadItemGraphics(ItemStorage* itemBtns){
         char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
 
         itemBtns[i] = (ItemStorage){
-            (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 70, 70},
+            (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 100, 100},
             LoadTexture(temp),
             itemName,
             OnItemStorageItemLeftClicked,
-            OnItemStorageItemRightClicked
+            OnItemStorageItemRightClicked,
+            OnItemStorageUIHovered
         };
     }
 }
@@ -177,7 +185,7 @@ int main(void){
         LoadTexture("Assets/Images/UI/Go Right Pressed.png"),
         LoadTexture("Assets/Images/UI/Go Right Hovered.png"),
         NULL,
-        OnNextSceneButtonClicked
+        OnNextSceneButtonClicked, OnButtonUIHovered
     };
     nextSceneButton.currentTexture = &nextSceneButton.normalTexture;
 
@@ -188,7 +196,7 @@ int main(void){
         LoadTexture("Assets/Images/UI/Go Left Pressed.png"),
         LoadTexture("Assets/Images/UI/Go Left Hovered.png"),
         NULL,
-        OnPrevSceneButtonClicked
+        OnPrevSceneButtonClicked, OnButtonUIHovered
     };
     prevSceneButton.currentTexture = &prevSceneButton.normalTexture;
 
@@ -208,7 +216,7 @@ int main(void){
         LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
         LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
         NULL, 
-        OnInventoryButtonClicked
+        OnInventoryButtonClicked, OnButtonUIHovered   
     };
 
     Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
@@ -226,7 +234,7 @@ int main(void){
             LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Hovered.png"),
             NULL, 
-            OnItemDeleteButtonClicked
+            OnItemDeleteButtonClicked, OnButtonUIHovered
         };
     }
     // Inventory End
@@ -275,6 +283,7 @@ int main(void){
                 }
 
                 // 카운터가 아님
+                globals->isToolTipShow = false;
                 if (globals->currentCornerIndex != CORNER_COUNTER && IsPopUpOpened() == false){
                     for (int i = 0; i < 10; i++){
                         UpdateItemStorage(&globals->itemsButtonUIs[i]);
@@ -288,7 +297,7 @@ int main(void){
                 }
 
                 globals->toolTipRect.x = GetMousePosition().x;
-                globals->toolTipRect.y = GetMousePosition().y;
+                globals->toolTipRect.y = GetMousePosition().y + 25;
                 
                 BeginDrawing();
                     DrawTexture(backgrounds[globals->currentCornerIndex][0], 0, 0, WHITE);
@@ -346,6 +355,7 @@ int main(void){
                     DrawTextEx(font, str, (Vector2){870, 725}, 35, 2, WHITE);
                     // Scene Move UI End
 
+                    // Inventory UI Start
                     if (globals->isInventoryOpened){
                         DrawRectangleRec(inventoryBG, BLUE);
                         DrawRectangleRec((Rectangle){20, 20, 1060, 60}, BLACK); // 나중에 UI 그래픽으로 바꿔야함;
@@ -363,8 +373,14 @@ int main(void){
                             RenderButtonUI(&inventoryDeleteButtons[i]);
                         }
                     }
-
-                    DrawRectangleRec(globals->toolTipRect, RAYWHITE);
+                    // Inventory UI End
+                    
+                    // ToolTip Draw Start
+                    if (globals->isToolTipShow){
+                        DrawRectangleRec(globals->toolTipRect, RAYWHITE);
+                        DrawTextEx(font, globals->toolTipName, (Vector2){globals->toolTipRect.x + 5, globals->toolTipRect.y + 5}, 20, 2, BLACK);
+                    }
+                    // ToolTip Draw End
 
                     DrawFPS(1400, 10);
 
@@ -573,4 +589,14 @@ void OnItemDeleteButtonClicked(ButtonUI* btn){
     free(globals->currentInventoryItemTextures);
     globals->currentInventory = temp;
     globals->currentInventoryItemTextures = textureTemp;
+}
+
+void OnButtonUIHovered(ButtonUI* buttonUI){
+    Globals* globals = GetGlobalVariables();
+}
+
+void OnItemStorageUIHovered(ItemStorage* itemStorageUI){
+    Globals* globals = GetGlobalVariables();
+    globals->isToolTipShow = true;
+    globals->toolTipName = itemStorageUI->itemName;
 }

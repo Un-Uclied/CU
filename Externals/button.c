@@ -1,8 +1,10 @@
 #include "button.h"
 
+
 void UpdateButtonUI(ButtonUI* btn){
     bool buttonAction = false;
     if (CheckCollisionPointRec(GetMousePosition(), btn->rect)){
+        btn->OnHovered(btn);
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
             btn->currentTexture = &btn->pressedTexture;
         }
@@ -30,6 +32,7 @@ void UpdateItemStorage(ItemStorage* storage){
     bool leftAction = false;
     bool rightAction = false;
     if (CheckCollisionPointRec(GetMousePosition(), storage->rect)){
+        storage->OnHovered(storage);
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
             leftAction = true;
         }
