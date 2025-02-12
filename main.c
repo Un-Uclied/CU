@@ -57,6 +57,8 @@ typedef struct {
     char** currentInventory; // 연결 리스트 구현하기 귀찮;
     Texture* currentInventoryItemTextures;
     int currentInventoryLen;
+
+    Rectangle toolTipRect;
 } Globals;
 
 // 정적 변수로 싱글톤 객체 유지 이게 맞냐??
@@ -134,6 +136,8 @@ int main(void){
     globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     globals->currentInventoryItemTextures = (Texture*)malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
 
+    globals->toolTipRect = (Rectangle){0, 0, 200, 70};
+
     // Dialogue
     char customerDialoguePath[256];
     char* customerName = "Normal Customer";
@@ -149,12 +153,14 @@ int main(void){
 
     Texture playerNormalTexture = LoadTexture("Assets/Images/Player/Idle.png");
     Texture blank = LoadTexture("Assets/Images/Backgrounds/Blank.png");
+    Texture normalCorner = LoadTexture("Assets/Images/Backgrounds/Corner.jpg");
+    Texture drinksCorner = LoadTexture("Assets/Images/Backgrounds/Drinks Corner.jpg");
     Texture backgrounds[5][2] = {
         {LoadTexture("Assets/Images/Backgrounds/CounterBack.png"), LoadTexture("Assets/Images/Backgrounds/CounterFore.png")},
-        {LoadTexture("Assets/Images/Backgrounds/Snack Bar.jpg"), blank},
-        {LoadTexture("Assets/Images/Backgrounds/Drink Bar.jpg"), blank},
-        {LoadTexture("Assets/Images/Backgrounds/Ramen Bar.jpg"), blank},
-        {LoadTexture("Assets/Images/Backgrounds/Tools Bar.jpg"), blank},
+        {normalCorner, blank},
+        {drinksCorner, blank},
+        {normalCorner, blank},
+        {normalCorner, blank},
     };
 
     Texture vignetteEffect = LoadTexture("Assets/Images/UI Effects/Vignette.png");
@@ -280,6 +286,9 @@ int main(void){
                         UpdateButtonUI(&inventoryDeleteButtons[i]);
                     }
                 }
+
+                globals->toolTipRect.x = GetMousePosition().x;
+                globals->toolTipRect.y = GetMousePosition().y;
                 
                 BeginDrawing();
                     DrawTexture(backgrounds[globals->currentCornerIndex][0], 0, 0, WHITE);
@@ -296,6 +305,9 @@ int main(void){
                     }
                     // 카운터 책상 렌더에도 쓸수 있고 손 렌더할수도
                     DrawTexture(backgrounds[globals->currentCornerIndex][1], 0, 0, WHITE);
+                    
+                    // Vignette 이펙트
+                    DrawTexture(vignetteEffect, 0, 0, (Color){0, 0, 0, 200});
                     
                     // Dialogue UI
                     DrawRectangleRec((Rectangle){0, GetScreenHeight() - 200, GetScreenWidth() - 400, 200}, BLACK);
@@ -351,6 +363,8 @@ int main(void){
                             RenderButtonUI(&inventoryDeleteButtons[i]);
                         }
                     }
+
+                    DrawRectangleRec(globals->toolTipRect, RAYWHITE);
 
                     DrawFPS(1400, 10);
 
