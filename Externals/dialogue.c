@@ -93,6 +93,7 @@ char** GetNeededItemsFromDialogue(cJSON* jsonData){
    
     for (int i = 0; i < neededItemCount; i++){
         neededItems[i] = cJSON_GetArrayItem(neededItemArray, i)->valuestring;
+        printf("%s\n", neededItems[i]);
     }
 
     return neededItems;

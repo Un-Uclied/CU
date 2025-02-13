@@ -82,18 +82,45 @@ Globals* GetGlobalVariables() {
     return &instance;
 }
 
+void InitGlobalVariables(){
+    Globals * globals = GetGlobalVariables();
+    globals->currentSceneIndex = SCENE_MAIN_TITLE;
+    globals->currentDifficulty = DIFFICULTY_NORMAL;
+    globals->currentCornerIndex = CORNER_COUNTER;
+
+    globals->isInventoryOpened = false;
+    globals->isCardMachineOpened = false;
+    globals->isPosMachineOpened = false;
+
+    globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    globals->currentInventoryItemTextures = (Texture*)malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
+    globals->currentInventoryItemPrice = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    
+    globals->neededItems = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+
+    globals->toolTipRect = (Rectangle){0, 0, 200, 70};
+
+    globals->currentTime = TIME_DAY;
+}
+
 char* GetCurrentCornerName();
 
 char* GetItemCategoryFolderPath();
 
 void LoadFontAll(Font* font);
 
-void StartDialogue(cJSON* jsonData, char*** dialogue, int* dialogueLen, int* currentDialogueIndex, char** neededItems, char* dialogueFilePath){    
-    jsonData = GetJsonData(dialogueFilePath);
-    dialogue = GetDialogueData(jsonData);
-    *dialogueLen = GetDialogueLen(jsonData);
+void StartDialogue(cJSON** jsonData, char**** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath){    
+    Globals* globals = GetGlobalVariables();
+    *jsonData = GetJsonData(dialogueFilePath);
+    *dialogue = GetDialogueData(*jsonData);
+    *dialogueLen = GetDialogueLen(*jsonData);
     *currentDialogueIndex = 0;
-    neededItems = GetNeededItemsFromDialogue(jsonData);
+    globals->neededItems = GetNeededItemsFromDialogue(*jsonData);
+
+    globals->neededItemLength = GetNeededItemsLengthFromDialogue(jsonData);
+
+    globals->currentSpeaker = dialogue[*currentDialogueIndex][0];
+    globals->currentText = dialogue[*currentDialogueIndex][1];
 }
 
 bool IsPopUpOpened();
@@ -125,40 +152,19 @@ int main(void){
     
     // 글로벌 변수 초기화!!
     Globals * globals = GetGlobalVariables();
-    globals->currentSceneIndex = SCENE_MAIN_TITLE;
-    globals->currentDifficulty = DIFFICULTY_NORMAL;
-    globals->currentCornerIndex = CORNER_COUNTER;
-
-    globals->isInventoryOpened = false;
-    globals->isCardMachineOpened = false;
-    globals->isPosMachineOpened = false;
-
-    globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-    globals->currentInventoryItemTextures = (Texture*)malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
-    globals->currentInventoryItemPrice = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-    
-    globals->neededItems = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-
-    globals->toolTipRect = (Rectangle){0, 0, 200, 70};
-
-    globals->currentTime = TIME_DAY;
+    InitGlobalVariables();
  
     // Dialogue
     char customerDialoguePath[256];
     char* customerName = "Normal Customer";
     sprintf(customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", customerName, globals->currentDifficulty);
 
-    cJSON* jsonData = GetJsonData(customerDialoguePath);
-    char*** dialogue = GetDialogueData(jsonData);
+    cJSON* jsonData;// = GetJsonData(customerDialoguePath);
+    char*** dialogue;// = GetDialogueData(jsonData);
     int dialogueLen = 0;
     int currentDialogueIndex = 0;
 
-    StartDialogue(jsonData, dialogue, &dialogueLen, &currentDialogueIndex, globals->neededItems, customerDialoguePath);
-    globals->neededItemLength = GetNeededItemsLengthFromDialogue(jsonData);
-
-    globals->currentSpeaker = dialogue[currentDialogueIndex][0];
-    globals->currentText = dialogue[currentDialogueIndex][1];
-
+    StartDialogue(&jsonData, &dialogue, &dialogueLen, &currentDialogueIndex, customerDialoguePath);
     // Dialogue End
 
     Texture playerNormalTexture = LoadTexture("Assets/Images/Player/Idle.png");
@@ -622,20 +628,18 @@ void OnCustomerButtonClicked(TransparentButton* btn){
         globals->currentText = "(아직 손님이 요청한\n물건들을 갖고 오지 않은것같다.)";
     }
     else{
-        globals->neededItems;
-        globals->neededItemLength;
         bool* gotItems = (bool*)malloc(sizeof(bool) * globals->neededItemLength);
         for (int i = 0; i < globals->neededItemLength; i++){
             gotItems[i] = false;
         }
-
         for (int i = 0; i < globals->neededItemLength; i++){
             for (int j = 0; j < globals->currentInventoryLen; j++){
-                if (globals->neededItems[i] == globals->currentInventory[j]){
+                if (strcmp(globals->neededItems[i], globals->currentInventory[j]) == 0){
                     gotItems[i] = true;
                 }
             }
         }
+
         bool isCorrect = true;
         for (int i = 0; i < globals->currentInventoryLen; i++){
             if (gotItems[i] == false){
@@ -730,8 +734,6 @@ void MakeItemStorageButton(ItemStorage* itemBtns){
         sprintf(temp, "Assets/Images/Items/%s/%d.png", itemBar, i);
         char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
         int itemPrice = cJSON_GetObjectItem(itemPriceObject, itemName)->valueint;
-
-        printf("%d\n", itemPrice);
 
         itemBtns[i] = (ItemStorage){
             (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 100, 100},
