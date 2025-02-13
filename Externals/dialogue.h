@@ -13,10 +13,10 @@
 
 char *ReadFileToString(const char *filename);
 
-cJSON* GetDialogueJson(char* dialogueFileName);
+//cJSON* GetDialogueJson(char* dialogueFileName);
 
-int GetDialogueLen(cJSON* json);
+int GetDialogueLen(cJSON* json, char* dialogueKey);
 
-char*** GetDialogueData(cJSON* json);
+char*** GetDialogueData(cJSON* json, char* dialogueKey);
 
 #endif

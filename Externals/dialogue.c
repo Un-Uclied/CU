@@ -22,7 +22,6 @@ char *ReadFileToString(const char *filename) {
 cJSON* GetJson(char* dialogueFileName){
     // JSON 파일 읽기
     char *jsonString = ReadFileToString(dialogueFileName);
-    printf("%s\n", dialogueFileName);
     if (!jsonString) return NULL;
 
     // JSON 파싱
@@ -47,13 +46,13 @@ cJSON* GetJsonData(char* fileName){
     }
 }
 
-int GetDialogueLen(cJSON* json){
-    cJSON *dialogueArray = cJSON_GetObjectItem(json, "dialogues");
+int GetDialogueLen(cJSON* json, char* dialogueKey){
+    cJSON *dialogueArray = cJSON_GetObjectItem(json, dialogueKey);
     return cJSON_GetArraySize(dialogueArray);
 }
 
-char*** GetDialogueData(cJSON* json){
-    cJSON *dialogueArray = cJSON_GetObjectItem(json, "dialogues");
+char*** GetDialogueData(cJSON* json, char* dialogueKey){
+    cJSON *dialogueArray = cJSON_GetObjectItem(json, dialogueKey);
 
     int dialogueLength = cJSON_GetArraySize(dialogueArray);
 
@@ -93,7 +92,6 @@ char** GetNeededItemsFromDialogue(cJSON* jsonData){
    
     for (int i = 0; i < neededItemCount; i++){
         neededItems[i] = cJSON_GetArrayItem(neededItemArray, i)->valuestring;
-        printf("%s\n", neededItems[i]);
     }
 
     return neededItems;

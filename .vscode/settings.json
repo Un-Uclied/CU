@@ -5,6 +5,7 @@
         "globals.h": "c",
         "string.h": "c",
         "stdio.h": "c",
-        "uievents.h": "c"
+        "uievents.h": "c",
+        "cjson.c": "cpp"
     }
 }

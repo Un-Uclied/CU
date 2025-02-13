@@ -35,6 +35,16 @@ typedef struct Globals {
     char* currentDifficulty;
     int currentSceneIndex;
     int currentCornerIndex;
+    bool canMoveCorner;
+
+    char* customerName;
+    char customerDialoguePath[256];
+    cJSON* jsonData;// = GetJsonData(customerDialoguePath);
+    char*** dialogue;// = GetDialogueData(jsonData);
+    int dialogueLen;
+    int currentDialogueIndex;
+    bool isCustomerAngry;
+    bool isCustomerHappy;
 
     char* currentSpeaker;
     char* currentText;
@@ -62,6 +72,8 @@ typedef struct Globals {
     bool isToolTipShow;
 
     DayTime currentTime;
+
+    int customerSpeed;
 } Globals;
 
 int itemUiPos[10][2] = {
@@ -90,6 +102,7 @@ void InitGlobalVariables(){
     globals->currentSceneIndex = SCENE_MAIN_TITLE;
     globals->currentDifficulty = DIFFICULTY_NORMAL;
     globals->currentCornerIndex = CORNER_COUNTER;
+    globals->canMoveCorner = false;
 
     globals->isInventoryOpened = false;
     globals->isCardMachineOpened = false;
@@ -106,6 +119,8 @@ void InitGlobalVariables(){
 
     globals->playerHealth = 100;
     globals->playerRating = 100;
+
+    globals->customerSpeed = 1500;
 }
 
 char* GetCurrentCornerName();
@@ -114,15 +129,11 @@ char* GetItemCategoryFolderPath();
 
 void LoadFontAll(Font* font);
 
-void StartDialogue(cJSON** jsonData, char**** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath){    
-    Globals* globals = GetGlobalVariables();
+void StartDialogue(cJSON** jsonData, char**** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath, char* dialogueKey){     
     *jsonData = GetJsonData(dialogueFilePath);
-    *dialogue = GetDialogueData(*jsonData);
-    *dialogueLen = GetDialogueLen(*jsonData);
+    *dialogue = GetDialogueData(*jsonData, dialogueKey);
+    *dialogueLen = GetDialogueLen(*jsonData, dialogueKey);
     *currentDialogueIndex = 0;
-    globals->neededItems = GetNeededItemsFromDialogue(*jsonData);
-
-    globals->neededItemLength = GetNeededItemsLengthFromDialogue(*jsonData);
 }
 
 bool IsPopUpOpened();
@@ -144,6 +155,29 @@ void OnCardReaderButtonClicked(TransparentButton* btn);
 
 void OnPosMachineButtonClicked(TransparentButton* btn);
 
+void NewCustomerIn(char* customerName, Texture* currentCustomerTexture){
+    Globals* globals = GetGlobalVariables();
+
+    globals->isCustomerAngry = false;
+    globals->isCustomerHappy = false;
+
+    globals->customerName = customerName;
+    globals->customerSpeed = 1500;
+
+    sprintf(globals->customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", globals->customerName, globals->currentDifficulty);
+    
+    char customerImagePath[256];
+    sprintf(customerImagePath, "Assets/Images/Customers/%s/Idle.png", globals->customerName);
+    *currentCustomerTexture = LoadTexture(customerImagePath);
+
+    StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
+    "dialogues");
+    globals->neededItems = GetNeededItemsFromDialogue(globals->jsonData);
+    globals->neededItemLength = GetNeededItemsLengthFromDialogue(globals->jsonData);
+    globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
+    globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
+}
+
 int main(void){
     InitWindow(1500, 900, "CU");
     //SetTargetFPS(500);
@@ -157,18 +191,21 @@ int main(void){
     InitGlobalVariables();
  
     // Dialogue
-    char customerDialoguePath[256];
-    char* customerName = "Normal Customer";
-    sprintf(customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", customerName, globals->currentDifficulty);
+    
+    
+    Texture currentCustomerTexture = LoadTexture("Assets/Images/Customers/Normal Customer/Idle.png");
+    float customerPosX = -currentCustomerTexture.width;
 
-    cJSON* jsonData;// = GetJsonData(customerDialoguePath);
-    char*** dialogue;// = GetDialogueData(jsonData);
-    int dialogueLen = 0;
-    int currentDialogueIndex = 0;
+    // globals->customerName = "Normal Customer";
+    // sprintf(globals->customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", globals->customerName, globals->currentDifficulty);
 
-    StartDialogue(&jsonData, &dialogue, &dialogueLen, &currentDialogueIndex, customerDialoguePath);
-    globals->currentSpeaker = dialogue[currentDialogueIndex][0];
-    globals->currentText = dialogue[currentDialogueIndex][1];
+    // StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
+    // "dialogues");
+    // globals->neededItems = GetNeededItemsFromDialogue(globals->jsonData);
+    // globals->neededItemLength = GetNeededItemsLengthFromDialogue(globals->jsonData);
+    // globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
+    // globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
+    NewCustomerIn("Normal Customer", &currentCustomerTexture);
     // Dialogue End
 
     Texture playerNormalTexture = LoadTexture("Assets/Images/Player/Idle.png");
@@ -185,11 +222,7 @@ int main(void){
 
     Texture vignetteEffect = LoadTexture("Assets/Images/UI Effects/Vignette.png");
 
-    Texture currentCustomerTexture = LoadTexture("Assets/Images/Customers/Normal Customer/Idle.png");
-    float customerPosX = -currentCustomerTexture.width;
-
     // Scene Move Start
-    bool canMoveCorner = false;
     ButtonUI sceneMoveBtns[2] = {
         NewButton("", (Rectangle){860, GetScreenHeight() - 120, 100, 100},
             LoadTexture("Assets/Images/UI/Go Left.png"),
@@ -240,7 +273,7 @@ int main(void){
             LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Hovered.png"), 
             OnItemDeleteButtonClicked,
-            false, "", ""
+            true, "리턴", "다시 진열장에 두기"
         );
     }
     // Inventory End
@@ -270,23 +303,32 @@ int main(void){
                 globals->isToolTipShow = false;
                 // Next Dialogue Key
                 if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_SPACE) && IsPopUpOpened() == false){
-                    int prevIndex = currentDialogueIndex;
-                    currentDialogueIndex = fmin(dialogueLen - 1, currentDialogueIndex + 1);
-                    if (prevIndex == currentDialogueIndex){
-                        canMoveCorner = true;
+                    int prevIndex = globals->currentDialogueIndex;
+                    globals->currentDialogueIndex = fmin(globals->dialogueLen - 1, globals->currentDialogueIndex + 1);
+                    if (prevIndex == globals->currentDialogueIndex){
+                        globals->canMoveCorner = true;
+
+                        // 손님이 화나서 한말 끝나면 새 고객이 들어옴.
+                        if (globals->isCustomerAngry == true){
+                            globals->customerSpeed = -1500;
+                            globals->canMoveCorner = false;
+                        }
                     }
                     else{
-                        globals->currentSpeaker = dialogue[currentDialogueIndex][0];
-                        globals->currentText = dialogue[currentDialogueIndex][1];
+                        globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
+                        globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
                     }
                 }
                 
-                // 고객은 항상 이동하려는중 새 고객올시 0으로 초기화 하셈 ㅇㅇ
-                customerPosX = fmin(270, customerPosX + 1500 * deltaTime);
+                // 고객은 항상 이동하려는중
+                customerPosX = fmax(-600, fmin(270, customerPosX + globals->customerSpeed * deltaTime));
+                if (customerPosX == -600 && (globals->isCustomerAngry || globals->isCustomerHappy)){
+                    NewCustomerIn("Kid Customer", &currentCustomerTexture);
+                }
                 
                 // 씬을 움직일수 있을때 버튼 업데이트
-                if (canMoveCorner){
-                    if (globals->currentCornerIndex == CORNER_COUNTER){
+                if (globals->canMoveCorner){
+                    if (globals->currentCornerIndex == CORNER_COUNTER && globals->isInventoryOpened == false){
                         UpdateTransparentButton(&customerButton);
                         UpdateTransparentButton(&posMachineButton);
                         UpdateTransparentButton(&cardMachineButton);
@@ -365,7 +407,7 @@ int main(void){
 
                     // Scene Move UI Start
                     DrawRectangleRec((Rectangle){850, GetScreenHeight() - 200, 250, 200}, BLUE);
-                    if (canMoveCorner){
+                    if (globals->canMoveCorner){
                         for (int i = 0; i < 2; i++){
                             RenderButtonUI(&sceneMoveBtns[i]);
                         }
@@ -659,10 +701,18 @@ void OnCustomerButtonClicked(TransparentButton* btn){
 
         cJSON* jsonData = GetJsonData(STAT_CHANGE_AMOUNT_JSON_DATA_PATH);
         if (isCorrect){
-            globals->playerRating += cJSON_GetObjectItem(jsonData, "increase when correct item")->valueint;
+            globals->playerRating = fmin(100, globals->playerRating + cJSON_GetObjectItem(jsonData, "increase when correct item")->valueint);
         }
         else{
-            globals->playerRating += cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint;
+            globals->canMoveCorner = false;
+            globals->isCustomerAngry = true;
+            StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
+                "dialogues_angry"
+            );
+            globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
+            globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
+            
+            globals->playerRating = fmax(0, globals->playerRating + cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint);
         }
     }
 }
