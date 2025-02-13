@@ -7,6 +7,7 @@
 
 #include "Externals/dialogue.c"
 #include "Externals/button.c"
+#include "Externals/pool.c"
 
 #define CORNER_COUNTER 0
 #define CORNER_SNACKS 1
@@ -108,11 +109,15 @@ void InitGlobalVariables(){
     globals->isCardMachineOpened = false;
     globals->isPosMachineOpened = false;
 
-    globals->currentInventory = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-    globals->currentInventoryItemTextures = (Texture*)malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
-    globals->currentInventoryItemPrice = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    // globals->currentInventory = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    // globals->currentInventoryItemTextures = (Texture*)pool_malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
+    // globals->currentInventoryItemPrice = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+
+    globals->currentInventory = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    globals->currentInventoryItemTextures = (Texture*)pool_malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
+    globals->currentInventoryItemPrice = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     
-    globals->neededItems = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    globals->neededItems = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     globals->toolTipRect = (Rectangle){0, 0, 200, 70};
 
     globals->currentTime = TIME_DAY;
@@ -139,8 +144,8 @@ void StartDialogue(cJSON** jsonData, char**** dialogue, int* dialogueLen, int* c
 bool IsPopUpOpened();
 
 // 버튼은 main함수에서 만들기에 선언을 미리 하고 구현은 아래에서 함
-ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
-TransparentButton NewTransparentButton(char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
+ButtonUI NewButton(const char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
+TransparentButton NewTransparentButton(const char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
 
 void OnPrevSceneButtonClicked(ButtonUI* btn);
 void OnNextSceneButtonClicked(ButtonUI* btn);
@@ -165,10 +170,8 @@ void NewCustomerIn(char* customerName, Texture* currentCustomerTexture){
     globals->customerSpeed = 1500;
 
     sprintf(globals->customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", globals->customerName, globals->currentDifficulty);
-    
-    char customerImagePath[256];
-    sprintf(customerImagePath, "Assets/Images/Customers/%s/Idle.png", globals->customerName);
-    *currentCustomerTexture = LoadTexture(customerImagePath);
+
+    *currentCustomerTexture = LoadTexture(TextFormat("Assets/Images/Customers/%s/Idle.png", globals->customerName));
 
     StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
     "dialogues");
@@ -191,20 +194,10 @@ int main(void){
     InitGlobalVariables();
  
     // Dialogue
-    
-    
+
     Texture currentCustomerTexture = LoadTexture("Assets/Images/Customers/Normal Customer/Idle.png");
     float customerPosX = -currentCustomerTexture.width;
 
-    // globals->customerName = "Normal Customer";
-    // sprintf(globals->customerDialoguePath, "Assets/Data/Customer Dialogues/%s/%s.json", globals->customerName, globals->currentDifficulty);
-
-    // StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
-    // "dialogues");
-    // globals->neededItems = GetNeededItemsFromDialogue(globals->jsonData);
-    // globals->neededItemLength = GetNeededItemsLengthFromDialogue(globals->jsonData);
-    // globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
-    // globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
     NewCustomerIn("Normal Customer", &currentCustomerTexture);
     // Dialogue End
 
@@ -264,10 +257,8 @@ int main(void){
 
     ButtonUI inventoryDeleteButtons[INVENTORY_MAX_LEN];
     for (int i = 0; i < INVENTORY_MAX_LEN; i++){
-        char* name = (char*)MemAlloc(sizeof(char) * 10);
-        sprintf(name, "%d", i);
         inventoryDeleteButtons[i] = NewButton(
-            name,
+            TextFormat("%d", i), // 짜피 버튼 이름 변경 안할거자너?
             (Rectangle) {950, i * 120 + 90, 100, 100},
             LoadTexture("Assets/Images/UI/Close Inventory.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
@@ -280,7 +271,8 @@ int main(void){
 
     // Time Start
     Texture clock = LoadTexture("Assets/Images/UI/Clock.png");
-    
+    print_pool_status();
+
     while (!WindowShouldClose()){
         float deltaTime = GetFrameTime();
         switch (globals->currentSceneIndex)
@@ -387,16 +379,11 @@ int main(void){
                     DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, GetScreenHeight()}, BLACK); // 
                     DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, 120}, WHITE); // Time, Item UI
                     DrawTexture(playerNormalTexture, GetScreenWidth()-400, 0, WHITE);
-                    
-                    char healthText[50];
-                    char ratingText[50];
-                    sprintf(healthText, "Health : %d", globals->playerHealth); // sprintf에는 char*말고 char[]써야됨
-                    sprintf(ratingText, "Store Rating : %d", globals->playerRating); // char*는 그냥 쌩 문자열 데이터라고 생각하면 될듯
-                    
-                    DrawTextEx(font, healthText, (Vector2){GetScreenWidth()-390, 10}, 25, 2, BLACK);
+
+                    DrawTextEx(font, TextFormat("Health : %d", globals->playerHealth), (Vector2){GetScreenWidth()-390, 10}, 25, 2, BLACK);
                     DrawRectangleRec((Rectangle){GetScreenWidth()-390, 35, 300, 5}, RED);
                     
-                    DrawTextEx(font, ratingText, (Vector2){GetScreenWidth()-390, 50},25, 2, BLACK);
+                    DrawTextEx(font, TextFormat("Store Rating : %d", globals->playerRating), (Vector2){GetScreenWidth()-390, 50},25, 2, BLACK);
                     DrawRectangleRec((Rectangle){GetScreenWidth()-390, 80, 300, 5}, BLUE);
                     // Player Stats UI End
 
@@ -412,20 +399,17 @@ int main(void){
                             RenderButtonUI(&sceneMoveBtns[i]);
                         }
                         RenderButtonUI(&inventoryButtonUI);
+                        DrawTextEx(font, TextFormat("%d", globals->currentInventoryLen), (Vector2){0, 0}, 100, 2, WHITE);
                     }
-                    
-                    char str[20]; // 문자열 쓰기 해야되서 배열로;
-                    sprintf(str, "> %s", GetCurrentCornerName());
-                    DrawTextEx(font, str, (Vector2){870, 725}, 35, 2, WHITE);
+                    DrawTextEx(font, TextFormat("> %s", GetCurrentCornerName()), (Vector2){870, 725}, 35, 2, WHITE);
                     // Scene Move UI End
 
                     // Inventory UI Start
                     if (globals->isInventoryOpened){
                         DrawRectangleRec(inventoryBG, BLUE);
                         DrawRectangleRec((Rectangle){20, 20, 1060, 60}, BLACK); // 나중에 UI 그래픽으로 바꿔야함;
-                        char temp[50];
-                        sprintf(temp, "인벤토리 %d / 5", globals->currentInventoryLen);
-                        DrawTextEx(font, temp, (Vector2){35, 35}, 40, 2, WHITE);
+
+                        DrawTextEx(font, TextFormat("인벤토리 %d / 5", globals->currentInventoryLen), (Vector2){35, 35}, 40, 2, WHITE);
                         
                         for (int i = 0; i < INVENTORY_MAX_LEN; i++){
                             DrawRectangleGradientV(20, i * 120 + 100, 1060, 100, BLUE, (Color){ 0, 101, 211, 255 } );
@@ -460,10 +444,8 @@ int main(void){
         
     }
 
-    free(globals->currentInventory);
-    free(globals->currentInventoryItemTextures);
-    free(globals->currentInventoryItemPrice);
-    free(globals->neededItems);
+    pool_cleanup();
+    print_pool_status();
 
     CloseWindow();
 
@@ -488,7 +470,7 @@ bool IsPopUpOpened(){
 void LoadFontAll(Font* font){
     // 코드포인트 배열 생성 (영어, 숫자, 특수기호, 한글)
     int codepointCount = 0;
-    int *codepoints = (int *)malloc(sizeof(int) * (11172 + 26 * 2 + 10 + 32)); // 한글 + 영어 + 숫자 + 특수기호
+    int *codepoints = (int *)pool_malloc(sizeof(int) * (11172 + 26 * 2 + 10 + 32)); // 한글 + 영어 + 숫자 + 특수기호
     int i = 0;
 
     // 영어 대문자 (A-Z)
@@ -524,7 +506,7 @@ void LoadFontAll(Font* font){
     SetTextureFilter(font->texture, TEXTURE_FILTER_BILINEAR);
     
     // 메모리 프리하게 해줄게
-    free(codepoints);
+    pool_free(codepoints);
 }
 
 // UI 표시 내용
@@ -614,43 +596,13 @@ void OnInventoryButtonClicked(ButtonUI* btn){
     }
 }
 
-// 아이템 얻는 버튼 왼쪽 클릭 구현
-void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
+// pool_malloc 믿을게 못돼; 에잉쯧 나때는 말이야@@@~~~..;;
+void ApplyInventoryDeleted(int prevSize){
     Globals* globals = GetGlobalVariables();
-    if (globals->currentInventoryLen == INVENTORY_MAX_LEN){
-        return;
-    }
 
-    // 인벤토리에 아이템 저장
-    globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
-    globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
-    
-    char price[10]; // 숫자를 문자열로 바꿔서 저장 (매 프레임마다 계속 정수를 문자열로 바꾸는것보단 성능 좋겠제)
-    sprintf(price, "%d\\", itemStorage->price);
-    globals->currentInventoryItemPrice[globals->currentInventoryLen] = strdup(price);
-    globals->currentInventoryLen ++;
-
-    char text[50];
-    sprintf(text, "(%s을(를) 바구니에 담았다.)", itemStorage->itemName);
-    globals->currentSpeaker = "당신";
-    globals->currentText = strdup(text);
-}
-
-// 아이템 얻는 버튼 오른쪽 클릭 구현
-void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
-
-}
- 
-// 아이템 지우는 버튼 구현
-void OnItemDeleteButtonClicked(ButtonUI* btn){
-    Globals * globals = GetGlobalVariables();
-    globals->currentInventory[atoi(btn->objectName)] = NULL;
-    int prevSize = globals->currentInventoryLen;
-    globals->currentInventoryLen --;
-
-    char** temp = (char**)malloc(sizeof(char*) * globals->currentInventoryLen);
-    Texture* textureTemp = (Texture*)malloc(sizeof(Texture) * globals->currentInventoryLen);
-    char** priceTemp = (char**)malloc(sizeof(char*) * globals->currentInventoryLen);
+    char** temp = (char**)pool_malloc(sizeof(char*) * globals->currentInventoryLen);
+    Texture* textureTemp = (Texture*)pool_malloc(sizeof(Texture) * globals->currentInventoryLen);
+    char** priceTemp = (char**)pool_malloc(sizeof(char*) * globals->currentInventoryLen);
 
     int j = 0;
     for (int i = 0; i < prevSize; i++){
@@ -662,13 +614,53 @@ void OnItemDeleteButtonClicked(ButtonUI* btn){
         }
     }
 
-    free(globals->currentInventory);
-    free(globals->currentInventoryItemTextures);
-    free(globals->currentInventoryItemPrice);
+    print_pool_status();
 
+    pool_free(globals->currentInventory);
+    globals->currentInventory = NULL;
+    pool_free(globals->currentInventoryItemTextures);
+    globals->currentInventoryItemTextures = NULL;
+    pool_free(globals->currentInventoryItemPrice);
+    globals->currentInventoryItemPrice = NULL;
+
+        
     globals->currentInventory = temp;
     globals->currentInventoryItemTextures = textureTemp;
     globals->currentInventoryItemPrice = priceTemp;
+}
+
+// 아이템 얻는 버튼 왼쪽 클릭 구현
+void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
+    Globals* globals = GetGlobalVariables();
+    if (globals->currentInventoryLen == INVENTORY_MAX_LEN){
+        return;
+    }
+
+    // 인벤토리에 아이템 저장
+    globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
+    globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
+    
+    globals->currentInventoryItemPrice[globals->currentInventoryLen] = strdup(TextFormat("%d\\", itemStorage->price));//= strdup(price);
+    globals->currentInventoryLen ++;
+
+    globals->currentSpeaker = "당신";
+    globals->currentText = strdup(TextFormat("(%s을(를) 바구니에 담았다.)", itemStorage->itemName));
+}
+
+// 아이템 얻는 버튼 오른쪽 클릭 구현
+void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
+
+}
+ 
+// 아이템 지우는 버튼 구현
+void OnItemDeleteButtonClicked(ButtonUI* btn){
+    Globals * globals = GetGlobalVariables();
+    globals->currentInventory[atoi(btn->objectName)] = NULL;
+    
+    int prevSize = globals->currentInventoryLen;
+    globals->currentInventoryLen --;
+
+    ApplyInventoryDeleted(prevSize);
 }
 
 // 손님 클릭
@@ -679,7 +671,7 @@ void OnCustomerButtonClicked(TransparentButton* btn){
         globals->currentText = "(아직 손님이 요청한\n물건들을 갖고 오지 않은것같다.)";
     }
     else{
-        bool* gotItems = (bool*)malloc(sizeof(bool) * globals->neededItemLength);
+        bool* gotItems = (bool*)pool_malloc(sizeof(bool) * globals->neededItemLength);
         for (int i = 0; i < globals->neededItemLength; i++){
             gotItems[i] = false;
         }
@@ -699,6 +691,8 @@ void OnCustomerButtonClicked(TransparentButton* btn){
             }
         }
 
+        pool_free(gotItems);
+
         cJSON* jsonData = GetJsonData(STAT_CHANGE_AMOUNT_JSON_DATA_PATH);
         if (isCorrect){
             globals->playerRating = fmin(100, globals->playerRating + cJSON_GetObjectItem(jsonData, "increase when correct item")->valueint);
@@ -713,6 +707,13 @@ void OnCustomerButtonClicked(TransparentButton* btn){
             globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
             
             globals->playerRating = fmax(0, globals->playerRating + cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint);
+        
+            for (int i = 0; i < 5; i++){
+                globals->currentInventory[i] = NULL;
+            }
+            int prevSize = globals->currentInventoryLen;
+            globals->currentInventoryLen = 0;
+            ApplyInventoryDeleted(prevSize);
         }
     }
 }
@@ -748,14 +749,12 @@ void OnItemStorageUIHovered(ItemStorage* itemStorageUI){
     globals->isToolTipShow = true;
     globals->toolTipName = itemStorageUI->itemName;
 
-    char priceText[10];
-    sprintf(priceText, "%d\\", itemStorageUI->price);
-    globals->toolTipText = strdup(priceText);
+    globals->toolTipText = strdup(TextFormat("%d\\", itemStorageUI->price));
 }
 
 
 // 새 버튼 만들고 반환
-ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
+ButtonUI NewButton(const char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
     ButtonUI newButton = (ButtonUI){
         objectName, 
         hitBox,
@@ -773,7 +772,7 @@ ButtonUI NewButton(char* objectName, Rectangle hitBox, Texture normalTexture, Te
 }
 
 // 새 투명 버튼 만들고 반환
-TransparentButton NewTransparentButton(char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
+TransparentButton NewTransparentButton(const char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
     TransparentButton newButton = (TransparentButton){
         objectName, hitBox, 
         clickedEvent, OnTransparentButtonUIHovered,
@@ -790,19 +789,15 @@ void MakeItemStorageButton(ItemStorage* itemBtns){
     char* itemBar = GetItemCategoryFolderPath();
     cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
 
-    char itemPriceObjectName[50];
-    sprintf(itemPriceObjectName, "%s Price", itemBar);
-    cJSON* itemPriceObject = cJSON_GetObjectItem(itemsData, itemPriceObjectName);
+    cJSON* itemPriceObject = cJSON_GetObjectItem(itemsData, TextFormat("%s Price", itemBar));
 
     for (int i = 0; i < 10; i++){
-        char temp[50];
-        sprintf(temp, "Assets/Images/Items/%s/%d.png", itemBar, i);
         char *itemName = cJSON_GetArrayItem(currentBar, i)->valuestring;
         int itemPrice = cJSON_GetObjectItem(itemPriceObject, itemName)->valueint;
 
         itemBtns[i] = (ItemStorage){
             (Rectangle){itemUiPos[i][0], itemUiPos[i][1], 100, 100},
-            LoadTexture(temp),
+            LoadTexture(TextFormat("Assets/Images/Items/%s/%d.png", itemBar, i)),
             itemName,
             itemPrice,
             OnItemStorageItemLeftClicked,

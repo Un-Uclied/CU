@@ -16,7 +16,7 @@ typedef struct {
 
 typedef struct ButtonUI ButtonUI;
 typedef struct ButtonUI{
-    char* objectName;
+    const char* objectName;
 
     Rectangle rect;
     Texture normalTexture;
@@ -47,7 +47,7 @@ typedef struct ItemStorage{
 
 typedef struct TransparentButton TransparentButton;
 typedef struct TransparentButton{
-    char* objectName;
+    const char* objectName;
     Rectangle rect;
 
     void (*OnClick)();
