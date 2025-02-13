@@ -1,0 +1,4 @@
+{
+    "decrease when wrong item" : -10,
+    "increase when correct item" : 10
+}

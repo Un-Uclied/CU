@@ -24,6 +24,9 @@
 
 #define INVENTORY_MAX_LEN 5
 
+#define ITEM_JSON_DATA_PATH "Assets/Data/Items.json"
+#define STAT_CHANGE_AMOUNT_JSON_DATA_PATH "Assets/Data/Stat Changes.json"
+
 typedef enum{
     TIME_DAY, TIME_NIGHT
 } DayTime;
@@ -97,10 +100,12 @@ void InitGlobalVariables(){
     globals->currentInventoryItemPrice = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     
     globals->neededItems = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-
     globals->toolTipRect = (Rectangle){0, 0, 200, 70};
 
     globals->currentTime = TIME_DAY;
+
+    globals->playerHealth = 100;
+    globals->playerRating = 100;
 }
 
 char* GetCurrentCornerName();
@@ -117,10 +122,7 @@ void StartDialogue(cJSON** jsonData, char**** dialogue, int* dialogueLen, int* c
     *currentDialogueIndex = 0;
     globals->neededItems = GetNeededItemsFromDialogue(*jsonData);
 
-    globals->neededItemLength = GetNeededItemsLengthFromDialogue(jsonData);
-
-    globals->currentSpeaker = dialogue[*currentDialogueIndex][0];
-    globals->currentText = dialogue[*currentDialogueIndex][1];
+    globals->neededItemLength = GetNeededItemsLengthFromDialogue(*jsonData);
 }
 
 bool IsPopUpOpened();
@@ -165,6 +167,8 @@ int main(void){
     int currentDialogueIndex = 0;
 
     StartDialogue(&jsonData, &dialogue, &dialogueLen, &currentDialogueIndex, customerDialoguePath);
+    globals->currentSpeaker = dialogue[currentDialogueIndex][0];
+    globals->currentText = dialogue[currentDialogueIndex][1];
     // Dialogue End
 
     Texture playerNormalTexture = LoadTexture("Assets/Images/Player/Idle.png");
@@ -187,7 +191,7 @@ int main(void){
     // Scene Move Start
     bool canMoveCorner = false;
     ButtonUI sceneMoveBtns[2] = {
-        NewButton("", (Rectangle){850, GetScreenHeight() - 120, 100, 100},
+        NewButton("", (Rectangle){860, GetScreenHeight() - 120, 100, 100},
             LoadTexture("Assets/Images/UI/Go Left.png"),
             LoadTexture("Assets/Images/UI/Go Left Pressed.png"),
             LoadTexture("Assets/Images/UI/Go Left Hovered.png"),
@@ -195,7 +199,7 @@ int main(void){
             false, "", ""
         ),
 
-        NewButton("", (Rectangle){1000, GetScreenHeight() - 120, 100, 100},
+        NewButton("", (Rectangle){990, GetScreenHeight() - 120, 100, 100},
             LoadTexture("Assets/Images/UI/Go Right.png"),
             LoadTexture("Assets/Images/UI/Go Right Pressed.png"),
             LoadTexture("Assets/Images/UI/Go Right Hovered.png"),
@@ -213,12 +217,12 @@ int main(void){
 
     // Inventory Start
     ButtonUI inventoryButtonUI  = NewButton("", // 이름 필요 없음;
-        (Rectangle) {GetScreenWidth()-380, GetScreenHeight() -120, 100, 100},
+        (Rectangle) {GetScreenWidth()-400, GetScreenHeight() -120, 400, 120},
         LoadTexture("Assets/Images/UI/Inventory.png"),
         LoadTexture("Assets/Images/UI/Inventory Pressed.png"),
         LoadTexture("Assets/Images/UI/Inventory Hovered.png"),
         OnInventoryButtonClicked,
-        false, "", ""
+        true, "인벤토리", "담은 물건 확인"
     );
     
     Rectangle inventoryBG = (Rectangle){20, 20, 1060, GetScreenHeight() - 240};
@@ -360,7 +364,7 @@ int main(void){
                     }
 
                     // Scene Move UI Start
-                    DrawRectangleRec((Rectangle){850, GetScreenHeight() - 200, 250, 200}, BROWN);
+                    DrawRectangleRec((Rectangle){850, GetScreenHeight() - 200, 250, 200}, BLUE);
                     if (canMoveCorner){
                         for (int i = 0; i < 2; i++){
                             RenderButtonUI(&sceneMoveBtns[i]);
@@ -413,6 +417,11 @@ int main(void){
         ClearBackground(BLUE);
         
     }
+
+    free(globals->currentInventory);
+    free(globals->currentInventoryItemTextures);
+    free(globals->currentInventoryItemPrice);
+    free(globals->neededItems);
 
     CloseWindow();
 
@@ -589,7 +598,7 @@ void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
 void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
 
 }
-
+ 
 // 아이템 지우는 버튼 구현
 void OnItemDeleteButtonClicked(ButtonUI* btn){
     Globals * globals = GetGlobalVariables();
@@ -648,11 +657,12 @@ void OnCustomerButtonClicked(TransparentButton* btn){
             }
         }
 
+        cJSON* jsonData = GetJsonData(STAT_CHANGE_AMOUNT_JSON_DATA_PATH);
         if (isCorrect){
-            printf("FOUND ALL! CONGRATS!\n");
+            globals->playerRating += cJSON_GetObjectItem(jsonData, "increase when correct item")->valueint;
         }
         else{
-            printf("NO U WRONG BITCH\n");
+            globals->playerRating += cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint;
         }
     }
 }
@@ -668,7 +678,12 @@ void OnPosMachineButtonClicked(TransparentButton* btn){
 }
 
 void OnButtonUIHovered(ButtonUI* buttonUI){
-    Globals* globals = GetGlobalVariables();
+    if (buttonUI->toolTip.showToolTip){// buttonUI중 어떤건 toolTip없어서 확인해야함
+        Globals* globals = GetGlobalVariables();
+        globals->isToolTipShow = true;
+        globals->toolTipName = buttonUI->toolTip.toolTipName;
+        globals->toolTipText = buttonUI->toolTip.toolTipText;
+    }
 }
 
 void OnTransparentButtonUIHovered(TransparentButton* buttonUI){
@@ -721,7 +736,7 @@ TransparentButton NewTransparentButton(char* objectName, Rectangle hitBox, void*
 
 // 아이템 버튼 체인지
 void MakeItemStorageButton(ItemStorage* itemBtns){
-    cJSON* itemsData = GetJsonData("Assets/Data/Items.json");
+    cJSON* itemsData = GetJsonData(ITEM_JSON_DATA_PATH);
     char* itemBar = GetItemCategoryFolderPath();
     cJSON* currentBar = cJSON_GetObjectItem(itemsData, itemBar);
 
