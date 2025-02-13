@@ -7,7 +7,6 @@
 
 #include "Externals/dialogue.c"
 #include "Externals/button.c"
-#include "Externals/pool.c"
 
 #define CORNER_COUNTER 0
 #define CORNER_SNACKS 1
@@ -28,6 +27,9 @@
 #define ITEM_JSON_DATA_PATH "Assets/Data/Items.json"
 #define STAT_CHANGE_AMOUNT_JSON_DATA_PATH "Assets/Data/Stat Changes.json"
 
+#define PAYMENT_CARD "Card"
+#define PAYMENT_CASH "Cash"
+
 typedef enum{
     TIME_DAY, TIME_NIGHT
 } DayTime;
@@ -38,17 +40,13 @@ typedef struct Globals {
     int currentCornerIndex;
     bool canMoveCorner;
 
+    DialogueUI dialogueUI;
+    
     char* customerName;
     char customerDialoguePath[256];
-    cJSON* jsonData;// = GetJsonData(customerDialoguePath);
-    char*** dialogue;// = GetDialogueData(jsonData);
-    int dialogueLen;
-    int currentDialogueIndex;
+    
     bool isCustomerAngry;
     bool isCustomerHappy;
-
-    char* currentSpeaker;
-    char* currentText;
 
     ItemStorage itemsButtonUIs[10];
     char** neededItems;
@@ -58,15 +56,18 @@ typedef struct Globals {
     int playerHealth;
     int playerRating;
 
+    bool isRingup;
     bool isInventoryOpened;
     bool isPosMachineOpened;
     bool isCardMachineOpened;
 
+    //인벤토리
     char* currentInventory[INVENTORY_MAX_LEN]; // 연결 리스트 구현하기 귀찮;
     Texture currentInventoryItemTextures[INVENTORY_MAX_LEN];
     int currentInventoryItemPrice[INVENTORY_MAX_LEN];
     int currentInventoryLen;
 
+    //툴팁
     Rectangle toolTipRect;
     char* toolTipName;
     char* toolTipText;
@@ -105,6 +106,8 @@ void InitGlobalVariables(){
     globals->currentCornerIndex = CORNER_COUNTER;
     globals->canMoveCorner = false;
 
+    globals->dialogueUI = (DialogueUI){ 0 };
+
     globals->isInventoryOpened = false;
     globals->isCardMachineOpened = false;
     globals->isPosMachineOpened = false;
@@ -116,7 +119,7 @@ void InitGlobalVariables(){
     }
     globals->currentInventoryLen = 0;
     
-    globals->neededItems = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    globals->neededItems = (char**)malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     globals->toolTipRect = (Rectangle){0, 0, 200, 70};
 
     globals->currentTime = TIME_DAY;
@@ -133,33 +136,56 @@ char* GetItemCategoryFolderPath();
 
 void LoadFontAll(Font* font);
 
-void StartDialogue(cJSON** jsonData, char**** dialogue, int* dialogueLen, int* currentDialogueIndex, char* dialogueFilePath, char* dialogueKey){     
-    *jsonData = GetJsonData(dialogueFilePath);
-    *dialogue = GetDialogueData(*jsonData, dialogueKey);
-    *dialogueLen = GetDialogueLen(*jsonData, dialogueKey);
-    *currentDialogueIndex = 0;
-}
-
 bool IsPopUpOpened();
 
 // 버튼은 main함수에서 만들기에 선언을 미리 하고 구현은 아래에서 함
 ButtonUI NewButton(const char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
 TransparentButton NewTransparentButton(const char* objectName, Rectangle hitBox, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText);
 
+// CORNER MOVE
 void OnPrevSceneButtonClicked(ButtonUI* btn);
 void OnNextSceneButtonClicked(ButtonUI* btn);
+// CORNER MOVE
 
+// INVENTORY
 void OnInventoryButtonClicked(ButtonUI* btn);
-
 void OnItemDeleteButtonClicked(ButtonUI* btn);
+// INVENTORY
 
+// COUNTER CORNER
 void OnCustomerButtonClicked(TransparentButton* btn);
-
 void OnCardReaderButtonClicked(TransparentButton* btn);
-
 void OnPosMachineButtonClicked(TransparentButton* btn);
+// COUNTER CORNER
 
-void NewCustomerIn(char* customerName, Texture* currentCustomerTexture){
+void OnDialogueNextKeyPressed(DialogueUI* dialogueUI){
+    if (IsPopUpOpened()) return;
+    Globals* globals = GetGlobalVariables();
+    int prevIndex = dialogueUI->currentDialogueIndex;
+    dialogueUI->currentDialogueIndex = fmin(dialogueUI->dialogueLen - 1, dialogueUI->currentDialogueIndex + 1);
+    if (prevIndex == dialogueUI->currentDialogueIndex){
+        if (globals->isRingup == false || globals->isCustomerAngry == false || globals->isCustomerHappy == false){
+            globals->canMoveCorner = true;
+        }
+                        
+        // 손님이 화나서 한말 끝나면 새 고객이 들어옴.
+        if (globals->isCustomerAngry == true){
+            globals->customerSpeed = -1500;
+            globals->canMoveCorner = false;
+        }
+        if (globals->isCustomerHappy == true){
+            globals->isRingup = true;
+            globals->canMoveCorner = false;
+        }
+        dialogueUI->isDialogueEnd = true;
+    }
+    else{
+        dialogueUI->currentSpeaker = dialogueUI->dialogue[dialogueUI->currentDialogueIndex][0];
+        dialogueUI->currentText = dialogueUI->dialogue[dialogueUI->currentDialogueIndex][1];
+    }
+}
+
+void NewCustomerIn(char* customerName, Texture* currentCustomerTexture, Texture* customerPaymentTexture){
     Globals* globals = GetGlobalVariables();
 
     globals->isCustomerAngry = false;
@@ -172,12 +198,11 @@ void NewCustomerIn(char* customerName, Texture* currentCustomerTexture){
 
     *currentCustomerTexture = LoadTexture(TextFormat("Assets/Images/Customers/%s/Idle.png", globals->customerName));
 
-    StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
-    "dialogues");
-    globals->neededItems = GetNeededItemsFromDialogue(globals->jsonData);
-    globals->neededItemLength = GetNeededItemsLengthFromDialogue(globals->jsonData);
-    globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
-    globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
+    StartDialogue(&globals->dialogueUI, globals->customerDialoguePath, "dialogues");
+    globals->neededItems = GetNeededItemsFromDialogue(globals->dialogueUI.dialogueJson);
+    globals->neededItemLength = GetNeededItemsLengthFromDialogue(globals->dialogueUI.dialogueJson);
+
+    *customerPaymentTexture = LoadTexture(cJSON_GetObjectItem(globals->dialogueUI.dialogueJson, "payment_texture_path")->valuestring);
 }
 
 int main(void){
@@ -191,13 +216,14 @@ int main(void){
     // 글로벌 변수 초기화!!
     Globals * globals = GetGlobalVariables();
     InitGlobalVariables();
+    globals->dialogueUI.font = &font;
  
     // Dialogue
-
     Texture currentCustomerTexture = LoadTexture("Assets/Images/Customers/Normal Customer/Idle.png");
+    Texture customerPaymentTexture = (Texture){ 0 };
     float customerPosX = -currentCustomerTexture.width;
 
-    NewCustomerIn("Normal Customer", &currentCustomerTexture);
+    NewCustomerIn("Normal Customer", &currentCustomerTexture, &customerPaymentTexture);
     // Dialogue End
 
     Texture playerNormalTexture = LoadTexture("Assets/Images/Player/Idle.png");
@@ -268,9 +294,11 @@ int main(void){
     }
     // Inventory End
 
+    // Card Reader Start
+    Rectangle cardReaderBG = (Rectangle){60, 60, 1020, GetScreenHeight() - 280};
+
     // Time Start
     Texture clock = LoadTexture("Assets/Images/UI/Clock.png");
-    print_pool_status();
 
     while (!WindowShouldClose()){
         float deltaTime = GetFrameTime();
@@ -292,40 +320,23 @@ int main(void){
 
             case SCENE_MAIN_GAME:
                 globals->isToolTipShow = false;
-                // Next Dialogue Key
-                if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_SPACE) && IsPopUpOpened() == false){
-                    int prevIndex = globals->currentDialogueIndex;
-                    globals->currentDialogueIndex = fmin(globals->dialogueLen - 1, globals->currentDialogueIndex + 1);
-                    if (prevIndex == globals->currentDialogueIndex){
-                        globals->canMoveCorner = true;
-
-                        // 손님이 화나서 한말 끝나면 새 고객이 들어옴.
-                        if (globals->isCustomerAngry == true){
-                            globals->customerSpeed = -1500;
-                            globals->canMoveCorner = false;
-                        }
-                    }
-                    else{
-                        globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
-                        globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
-                    }
-                }
+                UpdateDialogueUI(&globals->dialogueUI, OnDialogueNextKeyPressed);
                 
                 // 고객은 항상 이동하려는중
                 customerPosX = fmax(-600, fmin(270, customerPosX + globals->customerSpeed * deltaTime));
                 if (customerPosX == -600 && (globals->isCustomerAngry || globals->isCustomerHappy)){
-                    NewCustomerIn("Kid Customer", &currentCustomerTexture);
+                    // 새 고객
+                    NewCustomerIn("Kid Customer", &currentCustomerTexture, &customerPaymentTexture);
                 }
                 
+                if (globals->isRingup && globals->currentCornerIndex == CORNER_COUNTER && globals->isInventoryOpened == false){
+                    UpdateTransparentButton(&posMachineButton);
+                    UpdateTransparentButton(&cardMachineButton);
+                }
+
                 // 씬을 움직일수 있을때 버튼 업데이트
                 if (globals->canMoveCorner){
-                    if (globals->currentCornerIndex == CORNER_COUNTER && globals->isInventoryOpened == false){
-                        UpdateTransparentButton(&customerButton);
-                        UpdateTransparentButton(&posMachineButton);
-                        UpdateTransparentButton(&cardMachineButton);
-                    }
-                    
-
+                    UpdateTransparentButton(&customerButton);
                     if (IsPopUpOpened() == false){
                         for (int i = 0; i < 2; i++){
                             UpdateButtonUI(&sceneMoveBtns[i]);
@@ -367,16 +378,18 @@ int main(void){
                     
                     // Vignette 이펙트
                     DrawTexture(vignetteEffect, 0, 0, (Color){0, 0, 0, 200});
-                    
+
+                    if (globals->isCustomerHappy && globals->dialogueUI.currentDialogueIndex == 3){
+                        DrawTexture(customerPaymentTexture, 60, 60, WHITE);
+                    }
+
                     // Dialogue UI
-                    DrawRectangleRec((Rectangle){0, GetScreenHeight() - 200, GetScreenWidth() - 400, 200}, BLACK);
-                    DrawTextEx(font, globals->currentSpeaker, (Vector2){30, GetScreenHeight() - 180}, 50, 1, WHITE);
-                    DrawTextEx(font, globals->currentText, (Vector2){80, GetScreenHeight() - 120}, 40, 1, WHITE);
+                    RenderDialogueUI(&globals->dialogueUI);
                     // Dialogue UI End
 
                     // Player Stats UI
                     DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, GetScreenHeight()}, BLACK); // 
-                    DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, 120}, WHITE); // Time, Item UI
+                    DrawRectangleRec((Rectangle){GetScreenWidth()-400, 0, 400, 100}, WHITE);
                     DrawTexture(playerNormalTexture, GetScreenWidth()-400, 0, WHITE);
 
                     DrawTextEx(font, TextFormat("Health : %d", globals->playerHealth), (Vector2){GetScreenWidth()-390, 10}, 25, 2, BLACK);
@@ -422,6 +435,14 @@ int main(void){
                             RenderButtonUI(&inventoryDeleteButtons[i]); // 아이템 지우기 버튼
                         }
                     }
+
+                    if (globals->isCardMachineOpened){
+                        DrawRectangleRec(cardReaderBG, BLACK);
+                    }
+
+                    if (globals->isPosMachineOpened){
+
+                    }
                     // Inventory UI End
                     
                     // ToolTip Draw Start
@@ -442,9 +463,6 @@ int main(void){
         ClearBackground(BLUE);
         
     }
-
-    pool_cleanup();
-    print_pool_status();
 
     CloseWindow();
 
@@ -469,7 +487,7 @@ bool IsPopUpOpened(){
 void LoadFontAll(Font* font){
     // 코드포인트 배열 생성 (영어, 숫자, 특수기호, 한글)
     int codepointCount = 0;
-    int *codepoints = (int *)pool_malloc(sizeof(int) * (11172 + 26 * 2 + 10 + 32)); // 한글 + 영어 + 숫자 + 특수기호
+    int *codepoints = (int *)malloc(sizeof(int) * (11172 + 26 * 2 + 10 + 32)); // 한글 + 영어 + 숫자 + 특수기호
     int i = 0;
 
     // 영어 대문자 (A-Z)
@@ -505,7 +523,7 @@ void LoadFontAll(Font* font){
     SetTextureFilter(font->texture, TEXTURE_FILTER_BILINEAR);
     
     // 메모리 프리하게 해줄게
-    pool_free(codepoints);
+    free(codepoints);
 }
 
 // UI 표시 내용
@@ -595,14 +613,11 @@ void OnInventoryButtonClicked(ButtonUI* btn){
     }
 }
 
-// pool_malloc 믿을게 못돼; 에잉쯧 나때는 말이야@@@~~~..;;
+// malloc 믿을게 못돼; 에잉쯧 나때는 말이야@@@~~~..;; 그냥 배열 써라 이게 낫다 ㅆ
 void ApplyInventoryDeleted(){
     Globals* globals = GetGlobalVariables();
 
     int i, j;
-    // for (int n = 0; i < globals->currentInventoryLen; n++){
-    //     printf("%s\n", globals->currentInventory[n]);
-    // }
     for (i = 0, j = 0; i < globals->currentInventoryLen; i++){
         if (globals->currentInventory[i] != "DESTROY"){
             globals->currentInventory[j] = globals->currentInventory[i];
@@ -628,8 +643,7 @@ void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
     globals->currentInventoryItemPrice[globals->currentInventoryLen] = itemStorage->price ;//strdup(TextFormat("%d\\", itemStorage->price));//= strdup(price);
     globals->currentInventoryLen ++;
 
-    globals->currentSpeaker = "당신";
-    globals->currentText = strdup(TextFormat("(%s을(를) 바구니에 담았다.)", itemStorage->itemName));
+    OnPlayerStoredItem(&globals->dialogueUI, itemStorage->itemName);
 }
 
 // 아이템 얻는 버튼 오른쪽 클릭 구현
@@ -648,8 +662,7 @@ void OnItemDeleteButtonClicked(ButtonUI* btn){
 void OnCustomerButtonClicked(TransparentButton* btn){
     Globals* globals = GetGlobalVariables();
     if (globals->currentInventoryLen == 0){
-        globals->currentSpeaker = "당신";
-        globals->currentText = "(아직 손님이 요청한\n물건들을 갖고 오지 않은것같다.)";
+        OnPlayerDidNotBringItems(&globals->dialogueUI);
     }
     else{
         bool isCorrect = true;
@@ -657,7 +670,7 @@ void OnCustomerButtonClicked(TransparentButton* btn){
             isCorrect = false;
         }
         else{
-            bool* gotItems = (bool*)pool_malloc(sizeof(bool) * globals->neededItemLength);
+            bool* gotItems = (bool*)malloc(sizeof(bool) * globals->neededItemLength);
             for (int i = 0; i < globals->neededItemLength; i++){
                 gotItems[i] = false;
             }
@@ -676,24 +689,31 @@ void OnCustomerButtonClicked(TransparentButton* btn){
                 }
             }
     
-            pool_free(gotItems);
+            free(gotItems);
         }
         
         cJSON* jsonData = GetJsonData(STAT_CHANGE_AMOUNT_JSON_DATA_PATH);
         if (isCorrect){
             globals->playerRating = fmin(100, globals->playerRating + cJSON_GetObjectItem(jsonData, "increase when correct item")->valueint);
+        
+            globals->canMoveCorner = false;
+            globals->isCustomerHappy = true;
+            StartDialogue(&globals->dialogueUI, globals->customerDialoguePath, "dialogues_happy");
+            
+            // 인벤토리 초기화
+            for (int i = 0; i < 5; i++){
+                globals->currentInventory[i] = "DESTROY";
+            }
+            ApplyInventoryDeleted();
         }
         else{
+            globals->playerRating = fmax(0, globals->playerRating + cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint);
+
             globals->canMoveCorner = false;
             globals->isCustomerAngry = true;
-            StartDialogue(&globals->jsonData, &globals->dialogue, &globals->dialogueLen, &globals->currentDialogueIndex, globals->customerDialoguePath,
-                "dialogues_angry"
-            );
-            globals->currentSpeaker = globals->dialogue[globals->currentDialogueIndex][0];
-            globals->currentText = globals->dialogue[globals->currentDialogueIndex][1];
+            StartDialogue(&globals->dialogueUI, globals->customerDialoguePath, "dialogues_angry");
             
-            globals->playerRating = fmax(0, globals->playerRating + cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint);
-        
+            // 인벤토리 초기화
             for (int i = 0; i < 5; i++){
                 globals->currentInventory[i] = "DESTROY";
             }
@@ -704,12 +724,15 @@ void OnCustomerButtonClicked(TransparentButton* btn){
 
 // 카드 리더기 버튼 구현
 void OnCardReaderButtonClicked(TransparentButton* btn){
-    printf("Card Reader\n");
+    Globals* globals = GetGlobalVariables();
+    globals->isCardMachineOpened = true;
 }
 
 // 포스기 버튼 구현
 void OnPosMachineButtonClicked(TransparentButton* btn){
-    printf("Pos Machine\n");
+    Globals* globals = GetGlobalVariables();
+
+    globals->isPosMachineOpened = true;
 }
 
 void OnButtonUIHovered(ButtonUI* buttonUI){

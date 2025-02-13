@@ -11,6 +11,20 @@
 
 #include "../Assets/cJson/cJSON.c"
 
+typedef struct DialogueUI{
+    Font* font;
+
+    cJSON* dialogueJson;
+    char*** dialogue;
+    int dialogueLen;
+    int currentDialogueIndex;
+
+    char* currentSpeaker;
+    char* currentText;
+
+    bool isDialogueEnd;
+} DialogueUI;
+
 char *ReadFileToString(const char *filename);
 
 //cJSON* GetDialogueJson(char* dialogueFileName);

@@ -30,12 +30,32 @@
 
     "dialogues_angry" : [
         {"speaker" : "손님",
-        "text" : "엥, 누나 잘못 갖고 왔어여!"},
+        "text" : "엥, 누나 잘못 갖고 왔어여!",
+        "customer_image" : "Angry"
+        },
         {"speaker" : "당신",
         "text" : "(물건을 잘못 갖고 온것 같다;;)"},
         {"speaker" : "손님",
         "text" : "앗, 학원 시간 다 됐다!\n아쉽지만 다음에 먹어야겠네여!!"}
     ],
 
-    "item" : ["딸기 우유", "츄파츄스", "홈렁볼"]
+    "dialogues_happy" : [
+        {"speaker" : "손님",
+        "text" : "와 홈렁볼이다ㅏㅏ!!",
+        "customer_image" : "Happy"},
+        {"speaker" : "당신",
+        "text" : "계산은 어떻게 하시겠습니까"},
+        {"speaker" : "손님",
+        "text" : "저ㅓ 엄마한테 받은 만원있어여!!!"},
+        {"speaker" : "_",
+        "text" : "(만원을 얻었다.)",
+        "customer_image" : "Assets/Images/Payments/Cash.png" },
+        {"speaker" : "당신",
+        "text" : "(결제를 시작하자.)"}
+    ],
+
+    "item" : ["딸기 우유", "츄파츄스", "홈렁볼"],
+    "payment_type" : "Cash",
+    "payment_amount" : 10000,
+    "payment_texture_path" : "Assets/Images/Payments/Cash.png"
 }

@@ -1,5 +1,7 @@
 #include "dialogue.h"
 
+// 백엔드
+
 char *ReadFileToString(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -100,4 +102,38 @@ char** GetNeededItemsFromDialogue(cJSON* jsonData){
 int GetNeededItemsLengthFromDialogue(cJSON* jsonData){
     cJSON* neededItemArray = cJSON_GetObjectItem(jsonData, "item");
     return cJSON_GetArraySize(neededItemArray);
+}
+
+// 프론트엔드
+
+void StartDialogue(DialogueUI* dialogueUI, char* dialogueFilePath, char* dialogueKey){     
+    dialogueUI->dialogueJson = GetJsonData(dialogueFilePath);
+    dialogueUI->dialogue = GetDialogueData(dialogueUI->dialogueJson, dialogueKey);
+    dialogueUI->dialogueLen = GetDialogueLen(dialogueUI->dialogueJson, dialogueKey);
+    dialogueUI->currentDialogueIndex = 0;
+
+    dialogueUI->currentSpeaker = dialogueUI->dialogue[dialogueUI->currentDialogueIndex][0];
+    dialogueUI->currentText = dialogueUI->dialogue[dialogueUI->currentDialogueIndex][1];
+}
+
+void UpdateDialogueUI(DialogueUI* dialogueUI, void (*OnNextKeyPressed)()){
+    if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_SPACE)){
+        OnNextKeyPressed(dialogueUI);
+    }
+}
+
+void RenderDialogueUI(DialogueUI* dialogueUI){
+    DrawRectangleRec((Rectangle){0, GetScreenHeight() - 200, GetScreenWidth() - 400, 200}, BLACK);
+    DrawTextEx(*dialogueUI->font, dialogueUI->currentSpeaker, (Vector2){30, GetScreenHeight() - 180}, 50, 1, WHITE);
+    DrawTextEx(*dialogueUI->font, dialogueUI->currentText, (Vector2){80, GetScreenHeight() - 120}, 40, 1, WHITE);
+}
+
+void OnPlayerDidNotBringItems(DialogueUI* dialogueUI){
+    dialogueUI->currentSpeaker = "당신";
+    dialogueUI->currentText = "(아직 손님이 요청한\n물건들을 갖고 오지 않은것같다.)";
+}
+
+void OnPlayerStoredItem(DialogueUI* dialogueUI, char* itemName){
+    dialogueUI->currentSpeaker = "당신";
+    dialogueUI->currentText = strdup(TextFormat("(%s을(를) 바구니에 담았다.)", itemName));
 }
