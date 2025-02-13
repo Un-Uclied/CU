@@ -62,9 +62,9 @@ typedef struct Globals {
     bool isPosMachineOpened;
     bool isCardMachineOpened;
 
-    char** currentInventory; // 연결 리스트 구현하기 귀찮;
-    Texture* currentInventoryItemTextures;
-    char** currentInventoryItemPrice;
+    char* currentInventory[INVENTORY_MAX_LEN]; // 연결 리스트 구현하기 귀찮;
+    Texture currentInventoryItemTextures[INVENTORY_MAX_LEN];
+    int currentInventoryItemPrice[INVENTORY_MAX_LEN];
     int currentInventoryLen;
 
     Rectangle toolTipRect;
@@ -109,13 +109,12 @@ void InitGlobalVariables(){
     globals->isCardMachineOpened = false;
     globals->isPosMachineOpened = false;
 
-    // globals->currentInventory = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-    // globals->currentInventoryItemTextures = (Texture*)pool_malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
-    // globals->currentInventoryItemPrice = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-
-    globals->currentInventory = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
-    globals->currentInventoryItemTextures = (Texture*)pool_malloc(sizeof(Texture) * INVENTORY_MAX_LEN);
-    globals->currentInventoryItemPrice = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
+    for (int i = 0; i < INVENTORY_MAX_LEN; i++){
+        globals->currentInventory[i] = "";
+        globals->currentInventoryItemTextures[i] = (Texture){0};
+        globals->currentInventoryItemPrice[i] = 0;
+    }
+    globals->currentInventoryLen = 0;
     
     globals->neededItems = (char**)pool_malloc(sizeof(char*) * INVENTORY_MAX_LEN);
     globals->toolTipRect = (Rectangle){0, 0, 200, 70};
@@ -258,7 +257,7 @@ int main(void){
     ButtonUI inventoryDeleteButtons[INVENTORY_MAX_LEN];
     for (int i = 0; i < INVENTORY_MAX_LEN; i++){
         inventoryDeleteButtons[i] = NewButton(
-            TextFormat("%d", i), // 짜피 버튼 이름 변경 안할거자너?
+            strdup(TextFormat("%d", i)), 
             (Rectangle) {950, i * 120 + 90, 100, 100},
             LoadTexture("Assets/Images/UI/Close Inventory.png"),
             LoadTexture("Assets/Images/UI/Close Inventory Pressed.png"),
@@ -418,7 +417,7 @@ int main(void){
                         // 인벤토리에 있는 아이템 정보 렌더
                         for (int i = 0; i < globals->currentInventoryLen; i++){
                             DrawTextEx(font, globals->currentInventory[i], (Vector2){45, i * 120 + 100}, 40, 2, WHITE);
-                            DrawTextEx(font, globals->currentInventoryItemPrice[i], (Vector2){505, i * 120 + 100}, 40, 2, WHITE);
+                            DrawTextEx(font, TextFormat("%d\\", globals->currentInventoryItemPrice[i]), (Vector2){505, i * 120 + 100}, 40, 2, WHITE);
                             DrawTextureV(globals->currentInventoryItemTextures[i], (Vector2){820, i * 120 + 90}, WHITE);
                             RenderButtonUI(&inventoryDeleteButtons[i]); // 아이템 지우기 버튼
                         }
@@ -597,36 +596,22 @@ void OnInventoryButtonClicked(ButtonUI* btn){
 }
 
 // pool_malloc 믿을게 못돼; 에잉쯧 나때는 말이야@@@~~~..;;
-void ApplyInventoryDeleted(int prevSize){
+void ApplyInventoryDeleted(){
     Globals* globals = GetGlobalVariables();
 
-    char** temp = (char**)pool_malloc(sizeof(char*) * globals->currentInventoryLen);
-    Texture* textureTemp = (Texture*)pool_malloc(sizeof(Texture) * globals->currentInventoryLen);
-    char** priceTemp = (char**)pool_malloc(sizeof(char*) * globals->currentInventoryLen);
-
-    int j = 0;
-    for (int i = 0; i < prevSize; i++){
-        if (globals->currentInventory[i] != NULL){
-            temp[j] = globals->currentInventory[i];
-            textureTemp[j] = globals->currentInventoryItemTextures[i];
-            priceTemp[j] = globals->currentInventoryItemPrice[i];
-            j++;   
+    int i, j;
+    // for (int n = 0; i < globals->currentInventoryLen; n++){
+    //     printf("%s\n", globals->currentInventory[n]);
+    // }
+    for (i = 0, j = 0; i < globals->currentInventoryLen; i++){
+        if (globals->currentInventory[i] != "DESTROY"){
+            globals->currentInventory[j] = globals->currentInventory[i];
+            globals->currentInventoryItemPrice[j] = globals->currentInventoryItemPrice[i];
+            globals->currentInventoryItemTextures[j] = globals->currentInventoryItemTextures[i];
+            j++;
         }
     }
-
-    print_pool_status();
-
-    pool_free(globals->currentInventory);
-    globals->currentInventory = NULL;
-    pool_free(globals->currentInventoryItemTextures);
-    globals->currentInventoryItemTextures = NULL;
-    pool_free(globals->currentInventoryItemPrice);
-    globals->currentInventoryItemPrice = NULL;
-
-        
-    globals->currentInventory = temp;
-    globals->currentInventoryItemTextures = textureTemp;
-    globals->currentInventoryItemPrice = priceTemp;
+    globals->currentInventoryLen = j;
 }
 
 // 아이템 얻는 버튼 왼쪽 클릭 구현
@@ -640,7 +625,7 @@ void OnItemStorageItemLeftClicked(ItemStorage* itemStorage){
     globals->currentInventory[globals->currentInventoryLen] = itemStorage->itemName;
     globals->currentInventoryItemTextures[globals->currentInventoryLen] = itemStorage->texture;
     
-    globals->currentInventoryItemPrice[globals->currentInventoryLen] = strdup(TextFormat("%d\\", itemStorage->price));//= strdup(price);
+    globals->currentInventoryItemPrice[globals->currentInventoryLen] = itemStorage->price ;//strdup(TextFormat("%d\\", itemStorage->price));//= strdup(price);
     globals->currentInventoryLen ++;
 
     globals->currentSpeaker = "당신";
@@ -655,12 +640,8 @@ void OnItemStorageItemRightClicked(ItemStorage* itemStorage){
 // 아이템 지우는 버튼 구현
 void OnItemDeleteButtonClicked(ButtonUI* btn){
     Globals * globals = GetGlobalVariables();
-    globals->currentInventory[atoi(btn->objectName)] = NULL;
-    
-    int prevSize = globals->currentInventoryLen;
-    globals->currentInventoryLen --;
-
-    ApplyInventoryDeleted(prevSize);
+    globals->currentInventory[atoi(btn->objectName)] = "DESTROY";
+    ApplyInventoryDeleted();
 }
 
 // 손님 클릭
@@ -671,28 +652,33 @@ void OnCustomerButtonClicked(TransparentButton* btn){
         globals->currentText = "(아직 손님이 요청한\n물건들을 갖고 오지 않은것같다.)";
     }
     else{
-        bool* gotItems = (bool*)pool_malloc(sizeof(bool) * globals->neededItemLength);
-        for (int i = 0; i < globals->neededItemLength; i++){
-            gotItems[i] = false;
+        bool isCorrect = true;
+        if (globals->neededItemLength != globals->currentInventoryLen){
+            isCorrect = false;
         }
-        for (int i = 0; i < globals->neededItemLength; i++){
-            for (int j = 0; j < globals->currentInventoryLen; j++){
-                if (strcmp(globals->neededItems[i], globals->currentInventory[j]) == 0){
-                    gotItems[i] = true;
+        else{
+            bool* gotItems = (bool*)pool_malloc(sizeof(bool) * globals->neededItemLength);
+            for (int i = 0; i < globals->neededItemLength; i++){
+                gotItems[i] = false;
+            }
+            for (int i = 0; i < globals->neededItemLength; i++){
+                for (int j = 0; j < globals->currentInventoryLen; j++){
+                    if (strcmp(globals->neededItems[i], globals->currentInventory[j]) == 0){
+                        gotItems[i] = true;
+                    }
                 }
             }
-        }
 
-        bool isCorrect = true;
-        for (int i = 0; i < globals->currentInventoryLen; i++){
-            if (gotItems[i] == false){
-                isCorrect = false;
-                break;
+            for (int i = 0; i < globals->currentInventoryLen; i++){
+                if (gotItems[i] == false){
+                    isCorrect = false;
+                    break;
+                }
             }
+    
+            pool_free(gotItems);
         }
-
-        pool_free(gotItems);
-
+        
         cJSON* jsonData = GetJsonData(STAT_CHANGE_AMOUNT_JSON_DATA_PATH);
         if (isCorrect){
             globals->playerRating = fmin(100, globals->playerRating + cJSON_GetObjectItem(jsonData, "increase when correct item")->valueint);
@@ -709,11 +695,9 @@ void OnCustomerButtonClicked(TransparentButton* btn){
             globals->playerRating = fmax(0, globals->playerRating + cJSON_GetObjectItem(jsonData, "decrease when wrong item")->valueint);
         
             for (int i = 0; i < 5; i++){
-                globals->currentInventory[i] = NULL;
+                globals->currentInventory[i] = "DESTROY";
             }
-            int prevSize = globals->currentInventoryLen;
-            globals->currentInventoryLen = 0;
-            ApplyInventoryDeleted(prevSize);
+            ApplyInventoryDeleted();
         }
     }
 }
@@ -751,7 +735,6 @@ void OnItemStorageUIHovered(ItemStorage* itemStorageUI){
 
     globals->toolTipText = strdup(TextFormat("%d\\", itemStorageUI->price));
 }
-
 
 // 새 버튼 만들고 반환
 ButtonUI NewButton(const char* objectName, Rectangle hitBox, Texture normalTexture, Texture pressedTexture, Texture hoveredTexture, void* clickedEvent, bool showTooltip, char* toolTipName, char* toolTipText){
