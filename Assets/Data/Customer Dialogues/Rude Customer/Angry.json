@@ -1,0 +1,12 @@
+{
+    "dialogues" : [
+        {"speaker" : "손님",
+        "text" : "에헤이~~ 이게 아니지;;",
+        "customer_image" : "Angry"
+        },
+        {"speaker" : "손님",
+        "text" : "ㅉ 빨간 뚜껑 먹으러 간데이."},
+        {"speaker" : "_",
+        "text" : "(그리곤 가버렸다.)"}
+    ]
+}

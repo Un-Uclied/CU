@@ -21,7 +21,7 @@ char *ReadFileToString(const char *filename) {
     return buffer;
 }
 
-cJSON* GetJson(char* dialogueFileName){
+cJSON* GetJson(const char* dialogueFileName){
     // JSON 파일 읽기
     char *jsonString = ReadFileToString(dialogueFileName);
     if (!jsonString) return NULL;
@@ -38,7 +38,7 @@ cJSON* GetJson(char* dialogueFileName){
     return json;
 }
 
-cJSON* GetJsonData(char* fileName){
+cJSON* GetJsonData(const char* fileName){
     cJSON* jsonData = GetJson(fileName);
     if (jsonData == NULL){
         exit(-1);
@@ -48,12 +48,12 @@ cJSON* GetJsonData(char* fileName){
     }
 }
 
-int GetDialogueLen(cJSON* json, char* dialogueKey){
+int GetDialogueLen(cJSON* json, const char* dialogueKey){
     cJSON *dialogueArray = cJSON_GetObjectItem(json, dialogueKey);
     return cJSON_GetArraySize(dialogueArray);
 }
 
-char*** GetDialogueData(cJSON* json, char* dialogueKey){
+char*** GetDialogueData(cJSON* json, const char* dialogueKey){
     cJSON *dialogueArray = cJSON_GetObjectItem(json, dialogueKey);
 
     int dialogueLength = cJSON_GetArraySize(dialogueArray);
@@ -106,14 +106,15 @@ int GetNeededItemsLengthFromDialogue(cJSON* jsonData){
 
 // 프론트엔드
 
-void StartDialogue(DialogueUI* dialogueUI, char* dialogueFilePath, char* dialogueKey){     
-    dialogueUI->dialogueJson = GetJsonData(dialogueFilePath);
-    dialogueUI->dialogue = GetDialogueData(dialogueUI->dialogueJson, dialogueKey);
-    dialogueUI->dialogueLen = GetDialogueLen(dialogueUI->dialogueJson, dialogueKey);
+void StartDialogue(DialogueUI* dialogueUI, cJSON* dialogueJson){     
+    dialogueUI->dialogue = GetDialogueData(dialogueJson, "dialogues");
+    dialogueUI->dialogueLen = GetDialogueLen(dialogueJson, "dialogues");
     dialogueUI->currentDialogueIndex = 0;
 
     dialogueUI->currentSpeaker = dialogueUI->dialogue[dialogueUI->currentDialogueIndex][0];
     dialogueUI->currentText = dialogueUI->dialogue[dialogueUI->currentDialogueIndex][1];
+
+    dialogueUI->currentJson = dialogueJson;
 }
 
 void UpdateDialogueUI(DialogueUI* dialogueUI, void (*OnNextKeyPressed)()){

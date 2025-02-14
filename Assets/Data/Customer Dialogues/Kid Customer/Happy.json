@@ -1,0 +1,19 @@
+{
+    "dialogues" : [
+        {"speaker" : "손님",
+        "text" : "와 홈렁볼이다ㅏㅏ!!",
+        "customer_image" : "Happy"},
+        {"speaker" : "당신",
+        "text" : "계산은 어떻게 하시겠습니까"},
+        {"speaker" : "손님",
+        "text" : "저ㅓ 엄마한테 받은 만원있어여!!!"},
+        {"speaker" : "_",
+        "text" : "(만원을 얻었다.)",
+        "center_image" : "Assets/Images/Payments/Cash.png" },
+        {"speaker" : "당신",
+        "text" : "(결제를 시작하자.)"}
+    ],
+
+    "payment_type" : "Cash",
+    "payment_amount" : 10000
+}

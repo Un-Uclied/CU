@@ -14,7 +14,7 @@
 typedef struct DialogueUI{
     Font* font;
 
-    cJSON* dialogueJson;
+    cJSON* currentJson;
     char*** dialogue;
     int dialogueLen;
     int currentDialogueIndex;
@@ -29,8 +29,8 @@ char *ReadFileToString(const char *filename);
 
 //cJSON* GetDialogueJson(char* dialogueFileName);
 
-int GetDialogueLen(cJSON* json, char* dialogueKey);
+int GetDialogueLen(cJSON* json, const char* dialogueKey);
 
-char*** GetDialogueData(cJSON* json, char* dialogueKey);
+char*** GetDialogueData(cJSON* json, const char* dialogueKey);
 
 #endif
